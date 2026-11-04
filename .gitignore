@@ -4,3 +4,6 @@ target/
 *.log
 bench-out/
 .DS_Store
+.mimosa/
+.workbuddy/
+.zcode/
