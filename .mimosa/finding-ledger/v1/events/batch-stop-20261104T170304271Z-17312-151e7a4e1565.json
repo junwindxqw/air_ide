@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20261104T170304271Z-17312-151e7a4e1565",
+  "runId": "20261104T170304271Z-17312-151e7a4e1565",
+  "runStatus": "completed",
+  "coverage": {
+    "status": "complete",
+    "reasons": []
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": null,
+  "diffHash": "819358119b5f08c28dacf38f30524d48b506428e73e1d150729fd395bddc9a0f",
+  "rulesVersion": "unavailable",
+  "sessionHash": "a8174662b4a7818956260b6bb37e1c632293f024c315bb72508b19ff201af4ef",
+  "reportRef": ".mimosa/reports/task-review-sess_a2a9e42f-fc8a-4587-a1b4-3c8a116f9043-20261104T170304271Z-17312-151e7a4e1565.json",
+  "events": [],
+  "observedFindingIds": [],
+  "verifiedFiles": [
+    {
+      "file": "crates/air-core/src/lib.rs",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "crates/air-fs/src/lib.rs",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "crates/air-win/src/lib.rs",
+      "direct": "complete",
+      "projectContext": "partial"
+    }
+  ],
+  "recordedAt": "2026-11-04T17:03:04.812Z"
+}

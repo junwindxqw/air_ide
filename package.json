@@ -1,0 +1,9 @@
+{
+  "name": "air-ide-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter desktop dev:tauri",
+    "build": "pnpm --filter desktop build:tauri",
+    "check": "pnpm --filter desktop check"
+  }
+}
