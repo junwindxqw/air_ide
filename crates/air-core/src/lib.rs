@@ -9,6 +9,8 @@ pub type AirResult<T> = Result<T, AirError>;
 pub enum AirError {
     #[error("IO 错误: {0}")]
     Io(#[from] std::io::Error),
+    #[error("JSON 错误: {0}")]
+    Json(#[from] serde_json::Error),
     #[error("Git 错误: {0}")]
     Git(String),
     #[error("语言服务器错误: {0}")]
@@ -32,6 +34,7 @@ impl Serialize for AirError {
         }
         let code = match self {
             AirError::Io(_) => "io",
+            AirError::Json(_) => "json",
             AirError::Git(_) => "git",
             AirError::Lsp(_) => "lsp",
             AirError::Other(_) => "other",

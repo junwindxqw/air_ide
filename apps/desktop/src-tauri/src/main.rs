@@ -3,6 +3,7 @@
 
 mod commands;
 mod menu;
+mod watcher;
 
 use std::sync::Mutex;
 
@@ -18,6 +19,7 @@ fn main() {
 
     let state = commands::AppState {
         initial_open: Mutex::new(initial_open),
+        watcher: watcher::WatcherState::new(),
     };
 
     tauri::Builder::default()
@@ -39,9 +41,25 @@ fn main() {
             commands::fs_read_file,
             commands::fs_write_file,
             commands::fs_list_dir,
+            commands::fs_collect_files,
             commands::app_open_dialog,
             commands::app_take_initial_args,
-            commands::app_report_benchmark
+            commands::app_report_benchmark,
+            commands::git_status,
+            commands::git_diff_file,
+            commands::search_query,
+            commands::search_cancel,
+            commands::fs_watch,
+            commands::fs_unwatch,
+            commands::app_session_load,
+            commands::app_session_save,
+            commands::app_settings_load,
+            commands::app_settings_save,
+            commands::app_recent_projects,
+            commands::app_push_recent,
+            commands::app_drafts_save,
+            commands::app_drafts_load,
+            commands::app_draft_delete
         ])
         .on_menu_event(menu::handle_menu_event)
         .setup(|app| {
