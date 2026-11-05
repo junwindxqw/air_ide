@@ -1,6 +1,8 @@
 //! air-git：git CLI 封装与输出解析（2.7：CLI 优先，全部走 git.exe 绝对路径 + 参数数组）。
 //! P1 范围：status（porcelain v2）+ file diff 解析；写操作（stage/commit）属 P3。
 
+pub mod write;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -324,6 +326,8 @@ pub fn diff_file_with_opts(
         "--no-color".to_string(),
         "--no-ext-diff".to_string(),
         "-U3".to_string(),
+        // 显式开 rename 检测：不依赖用户 diff.renames 配置（3.7.2 重命名处理）
+        "-M".to_string(),
     ];
     if ignore_whitespace {
         args.push("-w".to_string());

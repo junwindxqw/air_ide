@@ -446,6 +446,387 @@ pub async fn git_blame(
         .map_err(|e| AirError::other(e.to_string()))?
 }
 
+// ── P3：写入操作（hunk 级三操作 + 提交 + 分支 + 远端 + 命令条）──
+
+/// hunk 级操作（3.7.2）：mode = stage | unstage | discard。
+/// diff_text 为该文件当前的原始 `git diff` 输出（前端从 git_diff_file 取原文缓存）。
+#[tauri::command]
+pub async fn git_apply_hunk(
+    repo: String,
+    path: String,
+    hunk_index: usize,
+    mode: String,
+    diff_text: String,
+) -> Result<(), AirError> {
+    let op = match mode.as_str() {
+        "stage" => air_git::write::HunkOp::Stage,
+        "unstage" => air_git::write::HunkOp::Unstage,
+        "discard" => air_git::write::HunkOp::Discard,
+        other => {
+            return Err(AirError::other(format!(
+                "未知 hunk 操作: {other}（应为 stage/unstage/discard）"
+            )))
+        }
+    };
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || {
+        air_git::write::apply_hunk(&root, &path, hunk_index, op, &diff_text)
+    })
+    .await
+    .map_err(|e| AirError::other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_stage_file(repo: String, path: String) -> Result<(), AirError> {
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || air_git::write::stage_file(&root, &path))
+        .await
+        .map_err(|e| AirError::other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_unstage_file(repo: String, path: String) -> Result<(), AirError> {
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || air_git::write::unstage_file(&root, &path))
+        .await
+        .map_err(|e| AirError::other(e.to_string()))?
+}
+
+/// 丢弃文件改动。未跟踪文件 = 删除文件（前端必须二次确认，3.7.2）。
+#[tauri::command]
+pub async fn git_discard_file(repo: String, path: String) -> Result<(), AirError> {
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || air_git::write::discard_file(&root, &path))
+        .await
+        .map_err(|e| AirError::other(e.to_string()))?
+}
+
+/// 提交身份预检（3.12.6）：缺失 user.name/user.email 时返回 false。
+#[tauri::command]
+pub async fn git_identity_ready(repo: String) -> Result<bool, AirError> {
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || -> AirResult<bool> {
+        let name = air_git::run_git(&root, &["config", "user.name"]).ok();
+        let email = air_git::run_git(&root, &["config", "user.email"]).ok();
+        Ok(name.is_some_and(|s| !s.trim().is_empty())
+            && email.is_some_and(|s| !s.trim().is_empty()))
+    })
+    .await
+    .map_err(|e| AirError::other(e.to_string()))?
+}
+
+/// 设置提交身份（首次提交引导，3.12.6）。
+#[tauri::command]
+pub async fn git_set_identity(
+    repo: String,
+    name: String,
+    email: String,
+    scope: String,
+) -> Result<(), AirError> {
+    let root = PathBuf::from(repo);
+    let flag = if scope == "global" { "--global" } else { "--local" };
+    tauri::async_runtime::spawn_blocking(move || -> AirResult<()> {
+        air_git::run_git(&root, &["config", flag, "user.name", &name])?;
+        air_git::run_git(&root, &["config", flag, "user.email", &email])?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AirError::other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_commit(
+    repo: String,
+    message: String,
+    amend: bool,
+    signoff: bool,
+) -> Result<String, AirError> {
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || {
+        air_git::write::commit(&root, &message, amend, signoff)
+    })
+    .await
+    .map_err(|e| AirError::other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_undo_commit(repo: String) -> Result<(), AirError> {
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || air_git::write::undo_last_commit(&root))
+        .await
+        .map_err(|e| AirError::other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_branches(repo: String) -> Result<Vec<air_git::write::BranchInfo>, AirError> {
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || air_git::write::branches(&root))
+        .await
+        .map_err(|e| AirError::other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_checkout(repo: String, name: String) -> Result<(), AirError> {
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || air_git::write::checkout_branch(&root, &name))
+        .await
+        .map_err(|e| AirError::other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_branch_create(repo: String, name: String) -> Result<(), AirError> {
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || air_git::write::create_branch(&root, &name))
+        .await
+        .map_err(|e| AirError::other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_branch_delete(repo: String, name: String, force: bool) -> Result<(), AirError> {
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || air_git::write::delete_branch(&root, &name, force))
+        .await
+        .map_err(|e| AirError::other(e.to_string()))?
+}
+
+/// 远端操作（fetch/pull/push）：进度经 `git://progress` 事件，输出经 `git://output`（3.5）。
+/// opId 用于取消（3.7.3 长操作可取消）。返回退出码（0 = 成功）。
+#[tauri::command]
+pub async fn git_remote_op(
+    app: tauri::AppHandle,
+    op_id: String,
+    repo: String,
+    op: String,
+    rebase: Option<bool>,
+) -> Result<i32, AirError> {
+    use std::io::{BufRead, BufReader};
+    use std::process::Stdio;
+
+    let root = PathBuf::from(&repo);
+    let args: Vec<String> = match op.as_str() {
+        "fetch" => vec!["fetch".into(), "--progress".into(), "--prune".into()],
+        "pull" => {
+            let mut v = vec!["pull".into(), "--progress".into()];
+            if rebase.unwrap_or(false) {
+                v.push("--rebase".into());
+            } else {
+                v.push("--no-rebase".into());
+            }
+            v
+        }
+        "push" => vec!["push".into(), "--progress".into()],
+        other => {
+            return Err(AirError::other(format!(
+                "未知远端操作: {other}（应为 fetch/pull/push）"
+            )))
+        }
+    };
+
+    let repo_root = air_git::find_repo_root(&root)
+        .ok_or_else(|| AirError::Git("非 Git 仓库".into()))?;
+
+    // 注册取消句柄
+    let child_pid = std::sync::Arc::new(std::sync::Mutex::new(None::<u32>));
+    REMOTE_CANCELS
+        .lock()
+        .unwrap()
+        .get_or_insert_with(HashMap::new)
+        .insert(op_id.clone(), child_pid.clone());
+
+    let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let mut child = air_git::git_command(&repo_root)
+        .args(&refs)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| AirError::Git(format!("启动 git {op} 失败: {e}")))?;
+
+    if let Ok(mut guard) = child_pid.lock() {
+        *guard = Some(child.id());
+    }
+
+    // 流式读 stderr（git 进度写 stderr），按 50ms 节流发进度、原文发 output
+    let stderr = child.stderr.take();
+    let app2 = app.clone();
+    let op_id2 = op_id.clone();
+    let reader_handle = std::thread::spawn(move || {
+        let Some(stderr) = stderr else { return };
+        let reader = BufReader::new(stderr);
+        let mut last_emit = std::time::Instant::now();
+        for line in reader.lines().map_while(Result::ok) {
+            let _ = app2.emit_to(
+                "main",
+                "git://output",
+                serde_json::json!({ "opId": op_id2, "stream": "stderr", "chunk": line }),
+            );
+            if last_emit.elapsed() >= std::time::Duration::from_millis(50) {
+                let _ = app2.emit_to(
+                    "main",
+                    "git://progress",
+                    serde_json::json!({ "opId": op_id2, "phase": op_label(&op_id2), "message": line, "percent": 0 }),
+                );
+                last_emit = std::time::Instant::now();
+            }
+        }
+    });
+
+    let status = tauri::async_runtime::spawn_blocking(move || child.wait_with_output())
+        .await
+        .map_err(|e| AirError::other(e.to_string()))?
+        .map_err(|e| AirError::Git(format!("git {op} 执行失败: {e}")))?;
+    let _ = reader_handle.join();
+
+    // 清理取消句柄
+    if let Some(map) = REMOTE_CANCELS.lock().unwrap().as_mut() {
+        map.remove(&op_id);
+    }
+
+    if !status.status.success() {
+        let stderr = String::from_utf8_lossy(&status.stderr).into_owned();
+        let _ = app.emit_to(
+            "main",
+            "git://output",
+            serde_json::json!({ "opId": op_id, "stream": "stderr", "chunk": stderr }),
+        );
+        return Ok(status.status.code().unwrap_or(-1));
+    }
+    Ok(0)
+}
+
+fn op_label(op_id: &str) -> &'static str {
+    if op_id.contains("push") {
+        "push"
+    } else if op_id.contains("pull") {
+        "pull"
+    } else {
+        "fetch"
+    }
+}
+
+/// 取消进行中的远端操作（3.7.3：Job Object 保证不留孤儿进程）。
+#[tauri::command]
+pub fn git_cancel(op_id: String) -> Result<(), AirError> {
+    if let Some(map) = REMOTE_CANCELS.lock().unwrap().as_ref() {
+        if let Some(pid) = map.get(&op_id) {
+            if let Some(pid) = *pid.lock().unwrap() {
+                #[cfg(windows)]
+                {
+                    // taskkill /T 杀进程树（git 可能派生子进程）
+                    let _ = std::process::Command::new("taskkill")
+                        .args(["/PID", &pid.to_string(), "/T", "/F"])
+                        .output();
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// 远端操作的取消句柄：opId → 子进程 PID（Arc<Mutex> 便于跨线程读取）。
+type CancelHandle = std::sync::Arc<std::sync::Mutex<Option<u32>>>;
+
+static REMOTE_CANCELS: std::sync::Mutex<Option<HashMap<String, CancelHandle>>> =
+    std::sync::Mutex::new(None);
+
+/// Git 命令条（D2）：跑任意 git 命令，流式输出经 `git://output`。
+/// 只允许 git 子命令（前端传 argv，如 ["rebase", "--abort"]），不经 shell。
+#[tauri::command]
+pub async fn git_run(
+    app: tauri::AppHandle,
+    op_id: String,
+    repo: String,
+    args: Vec<String>,
+) -> Result<i32, AirError> {
+    use std::io::{BufRead, BufReader};
+    use std::process::Stdio;
+
+    if args.is_empty() {
+        return Err(AirError::other("命令不能为空"));
+    }
+    // 白名单防护：禁止明显危险的命令（命令条是自救工具，不是破坏工具）
+    let blocked = ["clean", "gc", "prune", "filter-branch", "update-ref", "symbolic-ref"];
+    if blocked.contains(&args[0].as_str()) {
+        return Err(AirError::other(format!(
+            "命令条禁止执行: git {}（请用外部终端）",
+            args[0]
+        )));
+    }
+
+    let root = PathBuf::from(&repo);
+    let repo_root = air_git::find_repo_root(&root)
+        .ok_or_else(|| AirError::Git("非 Git 仓库".into()))?;
+
+    let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let mut child = air_git::git_command(&repo_root)
+        .args(&refs)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| AirError::Git(format!("启动 git 失败: {e}")))?;
+
+    let pid = child.id();
+    COMMAND_BAR_CANCELS
+        .lock()
+        .unwrap()
+        .get_or_insert_with(HashMap::new)
+        .insert(op_id.clone(), pid);
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    fn pump(r: Option<impl std::io::Read>, stream: &'static str, app: &tauri::AppHandle, op_id: &str) {
+        let Some(r) = r else { return };
+        let reader = BufReader::new(r);
+        for line in reader.lines().map_while(Result::ok) {
+            let _ = app.emit_to(
+                "main",
+                "git://output",
+                serde_json::json!({ "opId": op_id, "stream": stream, "chunk": line }),
+            );
+        }
+    }
+
+    let app_for_stderr = app.clone();
+    let op_for_stderr = op_id.clone();
+    let h = std::thread::spawn(move || {
+        pump(stderr, "stderr", &app_for_stderr, &op_for_stderr)
+    });
+    pump(stdout, "stdout", &app, &op_id);
+    let _ = h.join();
+
+    let status = tauri::async_runtime::spawn_blocking(move || child.wait_with_output())
+        .await
+        .map_err(|e| AirError::other(e.to_string()))?
+        .map_err(|e| AirError::Git(format!("git 执行失败: {e}")))?;
+
+    if let Some(map) = COMMAND_BAR_CANCELS.lock().unwrap().as_mut() {
+        map.remove(&op_id);
+    }
+    Ok(status.status.code().unwrap_or(-1))
+}
+
+/// 取消命令条执行。
+#[tauri::command]
+pub fn git_run_cancel(op_id: String) -> Result<(), AirError> {
+    if let Some(map) = COMMAND_BAR_CANCELS.lock().unwrap().as_ref() {
+        if let Some(pid) = map.get(&op_id) {
+            #[cfg(windows)]
+            {
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/PID", &pid.to_string(), "/T", "/F"])
+                    .output();
+            }
+        }
+    }
+    Ok(())
+}
+
+static COMMAND_BAR_CANCELS: std::sync::Mutex<Option<HashMap<String, u32>>> =
+    std::sync::Mutex::new(None);
+
+// [[NEXT]]
+
+// [[NEXT]]
+
 /// 全局搜索取消令牌表（3.5 search_cancel）。
 static SEARCH_CANCELS: std::sync::Mutex<Option<
     std::collections::HashMap<String, air_search::CancelToken>,
