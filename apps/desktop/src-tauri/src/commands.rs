@@ -189,7 +189,7 @@ pub async fn fs_read_file(path: String) -> Result<tauri::ipc::Response, AirError
             let is_large = size > air_fs::READONLY_THRESHOLD;
             if air_fs::is_binary(&p)? {
                 let meta = FileMetaDto {
-                    path: p.to_string_lossy().into_owned(),
+                    path: p.to_string_lossy().replace('\\', "/"),
                     encoding: "binary".into(),
                     eol: "lf".into(),
                     has_bom: false,
@@ -201,7 +201,8 @@ pub async fn fs_read_file(path: String) -> Result<tauri::ipc::Response, AirError
             }
             let tf = air_fs::read_text(&p)?;
             let meta = FileMetaDto {
-                path: p.to_string_lossy().into_owned(),
+                // 统一正斜杠：与 list_dir / 前端路径键一致
+                path: p.to_string_lossy().replace('\\', "/"),
                 encoding: tf.encoding.name().into(),
                 eol: eol_name(tf.eol).into(),
                 has_bom: tf.has_bom,
@@ -254,6 +255,86 @@ pub async fn fs_list_dir(dir: String) -> Result<Vec<air_fs::TreeEntry>, AirError
     tauri::async_runtime::spawn_blocking(move || air_fs::list_dir(&PathBuf::from(dir)))
         .await
         .map_err(|e| AirError::other(e.to_string()))?
+}
+
+// ── 文件操作（P1 文件树右键菜单）──
+
+#[tauri::command]
+pub async fn fs_create(path: String, kind: String) -> Result<(), AirError> {
+    let p = PathBuf::from(path);
+    tauri::async_runtime::spawn_blocking(move || -> AirResult<()> {
+        if kind == "dir" {
+            std::fs::create_dir_all(&p)?;
+        } else {
+            if let Some(parent) = p.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            // 已存在则报错，不静默覆盖
+            if p.exists() {
+                return Err(AirError::other(format!("文件已存在: {}", p.display())));
+            }
+            std::fs::File::create(&p)?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| AirError::other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn fs_rename(path: String, new_path: String) -> Result<(), AirError> {
+    let p = PathBuf::from(path);
+    let np = PathBuf::from(new_path);
+    tauri::async_runtime::spawn_blocking(move || -> AirResult<()> {
+        if np.exists() {
+            return Err(AirError::other(format!(
+                "目标已存在: {}",
+                np.display()
+            )));
+        }
+        if let Some(parent) = np.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::rename(&p, &np)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AirError::other(e.to_string()))?
+}
+
+/// 删除文件或目录（目录递归）。危险操作由前端二次确认（3.15）。
+#[tauri::command]
+pub async fn fs_delete(path: String) -> Result<(), AirError> {
+    let p = PathBuf::from(path);
+    tauri::async_runtime::spawn_blocking(move || -> AirResult<()> {
+        if p.is_dir() {
+            std::fs::remove_dir_all(&p)?;
+        } else {
+            std::fs::remove_file(&p)?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| AirError::other(e.to_string()))?
+}
+
+/// 在资源管理器中显示（explorer /select,<path>）。
+#[tauri::command]
+pub async fn fs_reveal(path: String) -> Result<(), AirError> {
+    tauri::async_runtime::spawn_blocking(move || -> AirResult<()> {
+        let p = std::path::Path::new(&path);
+        // explorer 只接受反斜杠 Windows 路径（经 air-win 归一化去 \\?\ 前缀）
+        let win = air_win::normalize_path(p)
+            .to_string_lossy()
+            .replace('/', "\\");
+        std::process::Command::new("explorer")
+            .arg(format!("/select,{win}"))
+            .spawn()
+            .map_err(|e| AirError::other(format!("打开资源管理器失败: {e}")))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AirError::other(e.to_string()))?
 }
 
 #[tauri::command]

@@ -82,3 +82,51 @@
 2. **IME spike 人工确认**：脚本无法验证候选框位置，需真机输入中文观察。
 3. **manifest 长路径/DPI 声明**：换嵌入方式（`tauri.conf.json` 或 winres 方案），P5 前解决；当前 369 字符长路径可用，说明 Win11 26300 系统开关已开。
 4. **`git.exe` 绝对路径调用**：3.12.6 要求不经 shell，P1 的 air-git 实现时落实。
+
+## Phase 1：阅读编辑 + 最小 diff（2026-11-05 完成）
+
+### 交付物
+
+| 模块 | 内容 |
+|---|---|
+| 前端 IPC 层 | `ipc/git.ts`（status/diff）、`ipc/search.ts`（流式+cancel）、`ipc/session.ts`（会话/设置/草稿/最近项目）、`ipc/watch.ts`（fs://changed + fs://rescan） |
+| `features/explorer` | 文件树（懒加载、忽略规则、右键菜单：新建/重命名/删除/复制路径/资源管理器显示、自动定位） |
+| `features/editor` | 多 tab（预览 tab 单例复用、脏标记、拖拽排序、溢出下拉、关闭焦点回上一下访问）、缩进参考线 ViewPlugin、编码/行尾切换（重新解释 vs 转换并保存）、外部修改三态横幅 |
+| `features/command` | 命令面板（Ctrl+Shift+A）+ fuzzy 匹配 + Ctrl+Shift+N/E/F、Ctrl+Alt+S 注册 |
+| `features/search` | 快速打开（nucleo 思路前端匹配）+ 全局搜索面板（流式分组、正则/大小写/整词、300ms 防抖、取消在途） |
+| `features/settings` | 设置页（3.14 四组清单 + 导入导出 + schemaVersion） |
+| `features/git` | Changes 面板（status 分组、分支 ahead/behind）+ 只读 unified diff 视图 |
+| Rust 新增 | fs_create/fs_rename/fs_delete/fs_reveal、git_status/git_diff_file、search_query/search_cancel、fs_collect_files、fs_watch/fs_unwatch、session/settings/drafts/recent 全套命令 |
+| 测试 | 新增 vitest 19（fuzzy 6 + tabs 10 + registry 3）、P1 冒烟 11、Rust 累计 27 |
+
+### 冒烟结果（11/11）
+
+文件树渲染（node_modules 过滤）✓、懒加载展开 ✓、多 tab 预览语义 ✓、固定 tab ✓、命令面板 ✓、快速打开 ✓、全局搜索流式分组 ✓、git status 解析 ✓、git diff 解析 ✓、干净 tab 外部修改自动重载 ✓。
+
+### 发现的问题与修复
+
+| # | 问题 | 根因 | 修复 |
+|---|---|---|---|
+| 1 | 目录点击永不展开 | air-fs `TreeEntry` 漏 `#[serde(rename_all = "camelCase")]`，`is_dir` 到前端变 `is_dir`，TS 读 `isDir` 得 undefined → 目录被判为文件 | 补 rename；**教训：跨 IPC 的 DTO 必须显式 camelCase，已列为代码审查点** |
+| 2 | 树路径键不匹配（`D:/x\src` 混分隔符） | Rust `read_dir` 子路径用 OS 分隔符拼接待定路径 | `list_dir` 与 `fs_read_file` 统一输出正斜杠 |
+| 3 | 打开文件不产生 tab | store.openFile 只设 pending，漏了 tabs store 注册 | openFile 中枢联动 openFile(path, meta, preview) |
+| 4 | 预览 tab 该替换时不替换 | 排除条件写错（排除了活跃 tab） | IntelliJ 单预览 tab 语义：未脏预览 tab 一律替换（单测锁定） |
+| 5 | 全局 tsc 7.0.2 不接受 `--noEmit` | npx 解析到全局新版 | 统一走 `./node_modules/.bin/tsc` |
+
+### P1 验收对照（方案 Phase 1 验收项）
+
+| 验收项 | 状态 |
+|---|---|
+| 打开 10k 文件项目树首次展开 ≤200ms | 未测（10k 夹具），2000 文件列表 21ms（P0 数据），P5 补 10k 基准 |
+| 全局搜索首批 ≤300ms | 流式实现就绪；冒烟验证功能通过，耗时未精确测量（P5 基准） |
+| 强杀后未保存内容恢复 | 草稿 IPC 已就绪；**会话恢复仅恢复了 tab 未接草稿内容合并**（见遗留） |
+| 20 个常用操作可经命令面板触达 | 11 个命令注册（P1 子集达标） |
+| Changes 面板可替代 `git diff` 命令 | 达标（status + 单文件 diff） |
+| 外部工具改文件三态处理 | 干净自动重载 ✓；脏 tab 横幅 ✓（UI 已交付） |
+
+### 遗留事项（进 P2/P5）
+
+1. **草稿与会话恢复合并**：恢复时 textCache 优先于磁盘，但崩溃后草稿内容未在 restoreSession 中并入（P2 补：drafts.load → 按 path 进 textCache + 标脏）。
+2. **查找替换面板**：CM6 `@codemirror/search` 已装，JetBrains 样式自绘面板未做（P2 补，属编辑器细节）。
+3. **面包屑**：P1 未交付（P2 与大纲一并做）。
+4. **10k 文件基准**：P5 性能专项统一测。

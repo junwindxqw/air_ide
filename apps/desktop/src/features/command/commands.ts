@@ -1,10 +1,12 @@
-// P0 命令注册：文件与视图类。
+// P0/P1 命令注册：文件与视图类。注册发生在 import 时（App 显式 import 本模块）。
 import { appOpenDialog } from '@/ipc/fs'
 import { registerCommand } from '@/features/command/registry'
 import { useEditorStore } from '@/features/editor/store'
 import { useUiStore } from '@/app/uiStore'
-
-// [[NEXT]]
+import { useOverlayStore } from '@/app/overlayStore'
+import { useExplorerStore } from '@/features/explorer/store'
+import { fsWatch } from '@/ipc/watch'
+import { recentProjects } from '@/ipc/session'
 
 registerCommand({
   id: 'file.open',
@@ -22,7 +24,7 @@ registerCommand({
   category: '文件',
   run: async () => {
     const path = await appOpenDialog('folder')
-    if (path) useUiStore.getState().setWorkspaceRoot(path)
+    if (path) await openWorkspace(path)
   },
 })
 
@@ -58,7 +60,50 @@ registerCommand({
   run: () => useUiStore.getState().focusEditor(),
 })
 
-export function registerAllCommands(): void {
-  // 注册发生在 import 时；此函数仅作为显式初始化入口供 App 调用。
-}
+registerCommand({
+  id: 'view.command_palette',
+  title: '查找命令',
+  category: '视图',
+  keybinding: 'Ctrl+Shift+A',
+  run: () => useOverlayStore.getState().openPalette(),
+})
 
+registerCommand({
+  id: 'view.quick_open',
+  title: '快速打开文件',
+  category: '视图',
+  keybinding: 'Ctrl+Shift+N',
+  run: () => useOverlayStore.getState().openQuickOpen(),
+})
+
+registerCommand({
+  id: 'view.search_everywhere',
+  title: '全局搜索',
+  category: '视图',
+  keybinding: 'Ctrl+Shift+F',
+  run: () => useOverlayStore.getState().openSearch(),
+})
+
+registerCommand({
+  id: 'view.recent_files',
+  title: '最近文件',
+  category: '视图',
+  keybinding: 'Ctrl+E',
+  run: () => useOverlayStore.getState().openQuickOpen(),
+})
+
+registerCommand({
+  id: 'app.settings',
+  title: '设置',
+  category: '系统',
+  keybinding: 'Ctrl+Alt+S',
+  run: () => useOverlayStore.getState().openSettings(),
+})
+
+/** 打开工作区：设 root、起监听、记最近项目。 */
+export async function openWorkspace(path: string) {
+  useUiStore.getState().setWorkspaceRoot(path)
+  useExplorerStore.getState().setRoot(path)
+  await fsWatch(path)
+  await recentProjects.push(path)
+}

@@ -1,10 +1,20 @@
-// 四区布局骨架（P0-3）：左 Project / 中编辑器 / 右 Git / 底状态栏，工具窗语义 Alt+1/9、Esc、Shift+Esc。
+// 四区布局（P1）：左 Project（文件树）/ 中编辑器（tab 栏 + CM6）/ 右 Git（Changes）/ 底状态栏。
 import { useEffect, useRef } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import type { ImperativePanelHandle } from 'react-resizable-panels'
 import { CodeEditor } from '@/features/editor/CodeEditor'
+import { TabBar } from '@/features/editor/TabBar'
+import { FileTree } from '@/features/explorer/FileTree'
+import { FileTreeMenu } from '@/features/explorer/FileTreeMenu'
+import { ChangesPanel } from '@/features/git/ChangesPanel'
+import { CommandPalette } from '@/features/command/CommandPalette'
+import { QuickOpen } from '@/features/search/QuickOpen'
+import { SearchPanel } from '@/features/search/SearchPanel'
+import { SettingsPage } from '@/features/settings/SettingsPage'
+import { ExternalChangeBanner } from '@/features/editor/ExternalChangeBanner'
 import { StatusBar } from '@/app/StatusBar'
 import { useUiStore } from '@/app/uiStore'
+import { useOverlayStore } from '@/app/overlayStore'
 
 export function Layout() {
   const leftRef = useRef<ImperativePanelHandle>(null)
@@ -53,14 +63,16 @@ export function Layout() {
           >
             <div className="tool-window">
               <div className="tool-window-title">Project</div>
-              <div className="tool-window-body">
-                文件树在 P1 交付（方案 4 / Phase 1）。
+              <div className="tool-window-body no-pad">
+                <FileTree />
               </div>
             </div>
           </Panel>
           <PanelResizeHandle className="panel-resize-handle" />
           <Panel minSize={20}>
             <div className="editor-area">
+              <TabBar />
+              <ExternalChangeBanner />
               <CodeEditor />
             </div>
           </Panel>
@@ -75,14 +87,31 @@ export function Layout() {
           >
             <div className="tool-window right">
               <div className="tool-window-title">Git</div>
-              <div className="tool-window-body">
-                Changes 面板在 P1 交付（最小 diff）；P3 交付完整 Git 写入。
+              <div className="tool-window-body no-pad">
+                <ChangesPanel />
               </div>
             </div>
           </Panel>
         </PanelGroup>
       </div>
       <StatusBar />
+      <FileTreeMenu />
+      <CommandPalette
+        open={useOverlayStore((s) => s.paletteOpen)}
+        onClose={() => useOverlayStore.getState().closeAll()}
+      />
+      <QuickOpen
+        open={useOverlayStore((s) => s.quickOpenOpen)}
+        onClose={() => useOverlayStore.getState().closeAll()}
+      />
+      <SearchPanel
+        open={useOverlayStore((s) => s.searchOpen)}
+        onClose={() => useOverlayStore.getState().closeAll()}
+      />
+      <SettingsPage
+        open={useOverlayStore((s) => s.settingsOpen)}
+        onClose={() => useOverlayStore.getState().closeAll()}
+      />
     </div>
   )
 }

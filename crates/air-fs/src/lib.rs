@@ -248,8 +248,10 @@ fn tmp_sibling(path: &Path) -> PathBuf {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TreeEntry {
     pub name: String,
+    /// 统一用正斜杠（前端路径键与 root 传入形式一致，避免混用分隔符导致键不匹配）
     pub path: String,
     pub is_dir: bool,
     pub size: u64,
@@ -265,7 +267,7 @@ pub fn list_dir(dir: &Path) -> AirResult<Vec<TreeEntry>> {
         let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
         out.push(TreeEntry {
             name: entry.file_name().to_string_lossy().into_owned(),
-            path: path.to_string_lossy().into_owned(),
+            path: path.to_string_lossy().replace('\\', "/"),
             is_dir,
             size,
         });
