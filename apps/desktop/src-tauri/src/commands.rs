@@ -423,6 +423,41 @@ pub async fn git_diff_file(
     .map_err(|e| AirError::other(e.to_string()))?
 }
 
+/// 原始 diff 文本（hunk 级操作的 patch 源，3.7.2）。
+#[tauri::command]
+pub async fn git_diff_raw(
+    repo: String,
+    path: String,
+    staged: bool,
+    ignore_whitespace: Option<bool>,
+) -> Result<String, AirError> {
+    let root = PathBuf::from(repo);
+    let iw = ignore_whitespace.unwrap_or(false);
+    tauri::async_runtime::spawn_blocking(move || -> AirResult<String> {
+        let repo_root = air_git::find_repo_root(&root)
+            .ok_or_else(|| AirError::Git("非 Git 仓库".into()))?;
+        let mut args = vec![
+            "diff".to_string(),
+            "--no-color".to_string(),
+            "--no-ext-diff".to_string(),
+            "-U3".to_string(),
+            "-M".to_string(),
+        ];
+        if iw {
+            args.push("-w".to_string());
+        }
+        if staged {
+            args.push("--cached".to_string());
+        }
+        args.push("--".to_string());
+        args.push(path);
+        let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        air_git::run_git(&repo_root, &refs)
+    })
+    .await
+    .map_err(|e| AirError::other(e.to_string()))?
+}
+
 #[tauri::command]
 pub async fn git_log(
     repo: String,

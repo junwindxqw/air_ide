@@ -896,6 +896,312 @@ body {
   color: #6AAB73;
 }
 
+/* ── P3：提交面板 / 分支菜单 / 命令条 / hunk 操作 ── */
+
+.diff-hunk-ops {
+  display: flex;
+  gap: 4px;
+}
+
+.diff-op-btn {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--fg-primary);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.diff-op-btn:hover {
+  background: var(--bg-hover);
+}
+
+.diff-op-btn.danger {
+  color: #FF6B68;
+  border-color: #FF6B68;
+}
+
+.diff-op-btn.danger:hover {
+  background: rgba(255, 107, 104, 0.15);
+}
+
+.commit-panel {
+  border-top: 1px solid var(--border);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.commit-identity {
+  background: #4A3C1E;
+  border: 1px solid #6B5A2E;
+  border-radius: 4px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.commit-identity-title {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.commit-identity-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.commit-input {
+  background: var(--bg-editor);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--fg-primary);
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+.commit-message {
+  background: var(--bg-editor);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg-primary);
+  font-size: 12px;
+  padding: 6px 8px;
+  min-height: 56px;
+  resize: vertical;
+  font-family: var(--ui-font);
+}
+
+.commit-message:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.commit-options {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--fg-secondary);
+}
+
+.commit-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.commit-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.commit-btn {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--fg-primary);
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.commit-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.commit-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.commit-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.commit-error {
+  background: rgba(255, 107, 104, 0.1);
+  border: 1px solid #FF6B68;
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+
+.commit-error-title {
+  font-size: 11px;
+  color: #FF6B68;
+  margin-bottom: 4px;
+}
+
+.commit-error-body {
+  font-family: var(--editor-font);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 160px;
+  overflow: auto;
+  margin: 0;
+}
+
+/* 分支菜单 */
+.branch-menu {
+  position: relative;
+  border-bottom: 1px solid var(--border);
+}
+
+.branch-current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--fg-primary);
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.branch-current:hover {
+  background: var(--bg-hover);
+}
+
+.branch-icon {
+  color: var(--accent);
+}
+
+.branch-upstream {
+  color: var(--fg-secondary);
+  font-size: 11px;
+}
+
+.branch-caret {
+  margin-left: auto;
+  color: var(--fg-secondary);
+}
+
+.branch-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 8px;
+  z-index: 50;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.branch-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.branch-item-name {
+  flex: 1;
+  cursor: pointer;
+}
+
+.branch-delete {
+  border: none;
+  background: none;
+  color: var(--fg-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 4px;
+}
+
+.branch-delete:hover {
+  color: #FF6B68;
+}
+
+.branch-create-row {
+  padding: 4px 10px;
+}
+
+.branch-error {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #FF6B68;
+  white-space: pre-wrap;
+  border-top: 1px solid var(--border);
+}
+
+/* Git 命令条 */
+.command-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 40px;
+  transform: translateX(-50%);
+  width: 680px;
+  max-width: 92vw;
+  max-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-toolwindow);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 57;
+}
+
+.command-bar-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.command-bar-prefix {
+  font-family: var(--editor-font);
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.command-bar-input {
+  flex: 1;
+  background: var(--bg-editor);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--fg-primary);
+  font-family: var(--editor-font);
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+.command-bar-output {
+  flex: 1;
+  overflow: auto;
+  padding: 6px 10px;
+  font-family: var(--editor-font);
+  font-size: 11px;
+  min-height: 80px;
+}
+
+.command-bar-line {
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding: 1px 0;
+}
+
+.command-bar-hint {
+  color: var(--fg-secondary);
+}
+
+.command-bar-warn {
+  padding: 4px 10px;
+  font-size: 11px;
+  color: #FF6B68;
+  border-top: 1px solid var(--border);
+}
+
 /* ── P2：双栏 diff ── */
 
 .split-diff {
@@ -1181,4 +1487,10 @@ body {
 .cm-diff-word-del {
   background: rgba(207, 142, 109, 0.35);
   border-radius: 2px;
+}
+
+.changes-check {
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
 }

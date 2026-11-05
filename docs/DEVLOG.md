@@ -175,3 +175,47 @@
 2. **文件历史**（`git log -- <path>`）P3 与 blame 一并做 UI。
 3. **双栏同步误差 ≤1 行的精确测量**：P5 基准。
 4. **查找替换面板**（CM6 search 自绘 JetBrains 样式）仍未做，继续推迟到 P3（编辑器细节不影响 Git 主线）。
+
+## Phase 3：Git 写入与远端（2026-11-05 完成）
+
+### 交付物
+
+| 模块 | 内容 |
+|---|---|
+| `air-git::write` | hunk 级 stage/unstage/discard（patch 拼接 + 三种 apply + add -N + CRLF 适配）、文件级 stage/unstage/discard、commit（stdin `-F -` + amend + signoff）、undo_commit、branches/checkout/create/delete |
+| 回归矩阵（3.7.2 门禁） | autocrlf 三态 × 7 类边界（CRLF/无末尾换行/重命名/新文件 add -N/删除/相邻 hunk/二进制）+ apply 失败零修改铁律 |
+| IPC | git_apply_hunk / git_diff_raw / stage_file / commit / undo / branches / remote_op（流式+取消）/ git_run（命令条白名单）/ identity 预检与设置 |
+| 前端 | CommitPanel（message/amend/signoff/身份预检/↑↓ 复用/撤销提交/hook 错误展示）、BranchMenu（切换/新建/删除 + fetch/pull/push）、CommandBar（任意 git 命令流式输出）、ChangesPanel stage 复选框、SplitDiff hunk 操作按钮（»/«/✕） |
+
+### 冒烟结果（14/14）
+
+文件级 stage ✓、hunk 级 unstage（第一个 hunk 回未暂存、第二个仍暂存）✓、hunk 级 stage ✓、提交（中文 message 走 stdin）✓、撤销提交 ✓、分支列表/新建 ✓、命令条 ✓、unstage+discard hunk（line2 还原、line13 保留）✓。
+
+### 发现的问题与修复（P3 最关键的两个数据级 bug）
+
+| # | 问题 | 根因 | 修复 |
+|---|---|---|---|
+| 1 | **autocrlf=false 时 hunk apply 全部失败** | `build_hunk_patch` 用 `.lines()` 会吃掉行尾 `\r`；autocrlf=false 的 index 存的就是 CRLF，patch 丢 `\r` 后上下文不匹配 | 改 `split('\n')` 保留 `\r`；`convert_patch_content_to_crlf` 对已带 `\r` 的行不重复转换 |
+| 2 | **autocrlf=true 时 discard（工作区）失败** | `git diff` 输出 index 形式（LF），工作区文件是 CRLF，`apply --reverse` 上下文不匹配 | Discard 前检测文件行尾，把 patch 内容行转为 CRLF 再 apply（验证：还原结果字节级一致） |
+| 3 | rename 不出现在 diff | `git diff -- <path>` 带 pathspec 时 git 不做 rename 配对 | 生产 diff 显式加 `-M`；**已知限制：带 pathspec 仍不出 rename 头**（status 侧仍报 rename 类型），记录待后续 |
+| 4 | 集成测试相互污染 | 共享可变 fixture | 测试内自建临时仓库（P2 已做，P3 沿用） |
+| 5 | `\n` 在测试模板字符串里变真换行 | CDP evaluate 的 JS 注入 | 转义 `\n` |
+
+### P3 验收对照（方案 Phase 3 验收项）
+
+| 验收项 | 状态 |
+|---|---|
+| hunk 级暂存后 `git diff --cached` 与 UI 一致 | 达标（冒烟 + 回归矩阵） |
+| 未跟踪文件单 hunk 独立暂存（add -N） | 达标（矩阵场景 4） |
+| apply 失败工作区与 index 均无变化 | 达标（铁律测试 + 错误信息注明"未做任何修改"） |
+| 中文/多行 message 不乱码 | 达标（stdin `-F -`） |
+| push 未授权错误可见可重试；rebase 中断命令条恢复 | IPC 就绪；命令条冒烟验证（push 无远端未测） |
+| 冲突文件从 UI 解决到可提交 | **未交付**（见遗留） |
+
+### 遗留事项（进 P4/P5）
+
+1. **冲突三栏 UI 未做**：Rust 侧 status 已识别 conflicted（P1），三栏解决 UI（解析 markers、逐块接受、结果栏编辑）推迟到 P4 后——P4 语言智能优先。
+2. **blame/文件历史 UI 未做**：Rust 命令就绪（P2），UI 推迟。
+3. **AI 上下文导出**（D7，P3 计划项）未做，推迟 P4。
+4. **查找替换面板**（P1 遗留）仍未做。
+5. **rename 的 pathspec 限制**：diff_file 带 pathspec 不出 rename 头；如需完整 rename hunk 操作要改用 whole-repo diff 提取。

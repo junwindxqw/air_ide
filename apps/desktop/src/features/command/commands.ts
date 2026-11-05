@@ -100,6 +100,31 @@ registerCommand({
   run: () => useOverlayStore.getState().openSettings(),
 })
 
+registerCommand({
+  id: 'git.command_bar',
+  title: 'Git 命令条',
+  category: 'Git',
+  keybinding: 'Ctrl+Alt+G',
+  run: () => useOverlayStore.getState().openCommandBar(),
+})
+
+registerCommand({
+  id: 'git.commit',
+  title: '提交更改',
+  category: 'Git',
+  keybinding: 'Ctrl+K',
+  run: () => {
+    // 聚焦提交信息框（Git 工具窗的 CommitPanel）
+    const el = document.querySelector('.commit-message') as HTMLTextAreaElement | null
+    if (el) {
+      el.focus()
+      el.scrollIntoView({ block: 'nearest' })
+    } else {
+      useOverlayStore.getState().openCommandBar()
+    }
+  },
+})
+
 /** 打开工作区：设 root、起监听、记最近项目。 */
 export async function openWorkspace(path: string) {
   useUiStore.getState().setWorkspaceRoot(path)

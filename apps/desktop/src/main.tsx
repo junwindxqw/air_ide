@@ -6,6 +6,7 @@ import { useTabsStore } from '@/features/editor/tabs'
 import { useOverlayStore } from '@/app/overlayStore'
 import { useExplorerStore } from '@/features/explorer/store'
 import { useDiffOverlay } from '@/features/git/openDiff'
+import { useUiStore } from '@/app/uiStore'
 import '@/styles/tokens.css'
 import '@/styles/base.css'
 
@@ -41,6 +42,50 @@ if (import.meta.env.DEV) {
     gitDiff: async (repo: string, path: string) => {
       const { gitDiffFile } = await import('@/ipc/git')
       return gitDiffFile(repo, path, false)
+    },
+    gitDiffRaw: async (repo: string, path: string, staged: boolean) => {
+      const { gitDiffRaw } = await import('@/ipc/git')
+      return gitDiffRaw(repo, path, staged)
+    },
+    stageFile: async (path: string) => {
+      const { gitStageFile } = await import('@/ipc/git')
+      const root = useUiStore.getState().workspaceRoot
+      if (root) await gitStageFile(root, path)
+    },
+    unstageFile: async (path: string) => {
+      const { gitUnstageFile } = await import('@/ipc/git')
+      const root = useUiStore.getState().workspaceRoot
+      if (root) await gitUnstageFile(root, path)
+    },
+    applyHunk: async (
+      repo: string,
+      path: string,
+      hunkIndex: number,
+      mode: 'stage' | 'unstage' | 'discard',
+      diffText: string,
+    ) => {
+      const { gitApplyHunk } = await import('@/ipc/git')
+      return gitApplyHunk(repo, path, hunkIndex, mode, diffText)
+    },
+    gitCommit: async (repo: string, message: string, amend = false, signoff = false) => {
+      const { gitCommit } = await import('@/ipc/git')
+      return gitCommit(repo, message, amend, signoff)
+    },
+    gitUndoCommit: async (repo: string) => {
+      const { gitUndoCommit } = await import('@/ipc/git')
+      return gitUndoCommit(repo)
+    },
+    gitBranches: async (repo: string) => {
+      const { gitBranches } = await import('@/ipc/git')
+      return gitBranches(repo)
+    },
+    gitBranchCreate: async (repo: string, name: string) => {
+      const { gitBranchCreate } = await import('@/ipc/git')
+      return gitBranchCreate(repo, name)
+    },
+    gitRun: async (opId: string, repo: string, args: string[]) => {
+      const { gitRun } = await import('@/ipc/git')
+      return gitRun(opId, repo, args)
     },
     openDiffFor: async (relPath: string) => {
       const { openDiffFor } = await import('@/features/git/openDiff')

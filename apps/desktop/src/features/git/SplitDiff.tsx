@@ -20,7 +20,9 @@ import {
 } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import type { FileDiff, Hunk, DiffLine } from '@/ipc/git'
+import { gitApplyHunk } from '@/ipc/git'
 import { wordDiff } from '@/features/git/wordDiff'
+import { useUiStore } from '@/app/uiStore'
 
 type DisplayItem =
   | { kind: 'row'; row: DiffRow }
@@ -199,15 +201,22 @@ export function SplitDiff({
   onClose,
   ignoreWs = false,
   onToggleIgnoreWs,
+  diffText,
+  onHunkOp,
 }: {
   diff: FileDiff
   onClose: () => void
   ignoreWs?: boolean
   onToggleIgnoreWs?: () => void
+  /** 原始 git diff 文本（hunk 操作的 patch 源，3.7.2） */
+  diffText?: string
+  /** hunk 操作完成回调（刷新 Changes 列表） */
+  onHunkOp?: () => void
 }) {
   const leftParent = useRef<HTMLDivElement>(null)
   const rightParent = useRef<HTMLDivElement>(null)
   const [activeHunk, setActiveHunk] = useState(0)
+  const repoRoot = useUiStore((s) => s.workspaceRoot)
   /** 已读标记（P2-4）：浏览过的 hunk 索引集合（不进 git，仅会话内） */
   const [readHunks, setReadHunks] = useState<Set<number>>(new Set())
   /** 折叠纯上下文行（P2-3：hunk 间上下文可折叠） */
@@ -238,6 +247,26 @@ export function SplitDiff({
     setActiveHunk(0)
     setReadHunks(new Set([0]))
   }, [diff.path])
+
+  // hunk 级操作（3.7.2）：» 暂存 / « 取消暂存 / ✕ 丢弃
+  const runHunkOp = async (hunkIndex: number, mode: 'stage' | 'unstage' | 'discard') => {
+    if (!diffText || !repoRoot) return
+    if (mode === 'discard') {
+      const ok = window.confirm(
+        `丢弃第 ${hunkIndex + 1} 个改动块的修改？此操作只影响工作区，不可撤销。`,
+      )
+      if (!ok) return
+    }
+    try {
+      await gitApplyHunk(repoRoot, diff.path, hunkIndex, mode, diffText)
+      onHunkOp?.()
+      // 操作后重开 diff（hunk 边界已变）
+      if (mode !== 'discard') onClose()
+    } catch (e) {
+      // 3.15：错误保留 git 原文 + 人话解释
+      window.alert(`操作失败（未做任何修改）：\n${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
 
   const rows = useMemo(() => buildSplitRows(diff.hunks), [diff])
   // 折叠模式：连续纯上下文行合并为一条占位行
@@ -360,6 +389,31 @@ export function SplitDiff({
           ↓
         </button>
         <span className="diff-toolbar-spacer" />
+        {diffText && diff.hunks.length > 0 && (
+          <span className="diff-hunk-ops">
+            <button
+              className="diff-op-btn"
+              onClick={() => void runHunkOp(activeHunk, 'stage')}
+              title="暂存此块 (»)"
+            >
+              » 暂存
+            </button>
+            <button
+              className="diff-op-btn"
+              onClick={() => void runHunkOp(activeHunk, 'unstage')}
+              title="取消暂存 («)"
+            >
+              « 取消
+            </button>
+            <button
+              className="diff-op-btn danger"
+              onClick={() => void runHunkOp(activeHunk, 'discard')}
+              title="丢弃此块（不可撤销）"
+            >
+              ✕ 丢弃
+            </button>
+          </span>
+        )}
         <span className="diff-read-progress">
           已读 {readHunks.size} / {diff.hunks.length}
         </span>

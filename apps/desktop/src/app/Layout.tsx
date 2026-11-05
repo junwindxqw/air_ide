@@ -7,6 +7,9 @@ import { TabBar } from '@/features/editor/TabBar'
 import { FileTree } from '@/features/explorer/FileTree'
 import { FileTreeMenu } from '@/features/explorer/FileTreeMenu'
 import { ChangesPanel } from '@/features/git/ChangesPanel'
+import { CommitPanel } from '@/features/git/CommitPanel'
+import { BranchMenu } from '@/features/git/BranchMenu'
+import { CommandBar } from '@/features/git/CommandBar'
 import { LogView } from '@/features/git/LogView'
 import { CommandPalette } from '@/features/command/CommandPalette'
 import { QuickOpen } from '@/features/search/QuickOpen'
@@ -108,7 +111,15 @@ export function Layout() {
                 </span>
               </div>
               <div className="tool-window-body no-pad">
-                {gitTab === 'changes' ? <ChangesPanel /> : <LogView repo={workspaceRoot ?? ''} onClose={() => setGitTab('changes')} />}
+                {gitTab === 'changes' ? (
+                  <>
+                    <BranchMenu />
+                    <ChangesPanel />
+                    <CommitPanel />
+                  </>
+                ) : (
+                  <LogView repo={workspaceRoot ?? ''} onClose={() => setGitTab('changes')} />
+                )}
               </div>
             </div>
           </Panel>
@@ -133,6 +144,10 @@ export function Layout() {
         onClose={() => useOverlayStore.getState().closeAll()}
       />
       <GlobalDiff />
+      <CommandBar
+        open={useOverlayStore((s) => s.commandBarOpen)}
+        onClose={() => useOverlayStore.getState().closeAll()}
+      />
     </div>
   )
 }
