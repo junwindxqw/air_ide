@@ -108,6 +108,28 @@ if (import.meta.env.DEV) {
     openSearch: () => useOverlayStore.getState().openSearch(),
     openSettings: () => useOverlayStore.getState().openSettings(),
     closeOverlays: () => useOverlayStore.getState().closeAll(),
+    lspScan: async () => {
+      const { lspServersScan } = await import('@/ipc/lsp')
+      return lspServersScan()
+    },
+    lspStart: async (lang: string, root: string) => {
+      const { lspStart } = await import('@/ipc/lsp')
+      const { normalizeError } = await import('@/ipc/invoke')
+      try {
+        return await lspStart(lang, root)
+      } catch (e) {
+        throw normalizeError(e)
+      }
+    },
+    lspReap: async () => {
+      const { lspReapIdle } = await import('@/ipc/lsp')
+      return lspReapIdle(0)
+    },
+    projectProfile: async (root: string) => {
+      const { projectProfile } = await import('@/ipc/lsp')
+      return projectProfile(root)
+    },
+    openServerPanel: () => useOverlayStore.getState().openServerPanel(),
     debugExplorer: () => {
       const s = useExplorerStore.getState()
       return {

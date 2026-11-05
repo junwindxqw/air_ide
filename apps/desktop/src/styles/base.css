@@ -1494,3 +1494,74 @@ body {
   cursor: pointer;
   accent-color: var(--accent);
 }
+
+/* ── P4：语言服务器管理面板 ── */
+
+.server-row {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.server-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.server-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.server-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
+.server-badge.ok {
+  color: #6AAB73;
+  border-color: #6AAB73;
+}
+
+.server-badge.missing {
+  color: #CF8E6D;
+  border-color: #CF8E6D;
+}
+
+.server-badge.state-running {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.server-path {
+  font-family: var(--editor-font);
+  font-size: 11px;
+  color: var(--fg-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 6px;
+}
+
+.server-hint {
+  font-size: 11px;
+  color: var(--fg-secondary);
+}
+
+.server-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.server-note {
+  font-size: 11px;
+  color: var(--fg-secondary);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  line-height: 1.6;
+}

@@ -52,9 +52,11 @@ dependencies = [
  "air-core",
  "air-fs",
  "air-git",
+ "air-lsp",
  "air-search",
  "air-win",
  "air-workspace",
+ "ignore",
  "notify",
  "serde",
  "serde_json",
@@ -68,6 +70,17 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "windows",
+]
+
+[[package]]
+name = "air-lsp"
+version = "0.1.0"
+dependencies = [
+ "air-core",
+ "air-win",
+ "serde",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]

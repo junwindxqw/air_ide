@@ -125,6 +125,13 @@ registerCommand({
   },
 })
 
+registerCommand({
+  id: 'lsp.server_panel',
+  title: '语言服务器管理',
+  category: '语言',
+  run: () => useOverlayStore.getState().openServerPanel(),
+})
+
 /** 打开工作区：设 root、起监听、记最近项目。 */
 export async function openWorkspace(path: string) {
   useUiStore.getState().setWorkspaceRoot(path)

@@ -18,9 +18,11 @@ tracing-subscriber.workspace = true
 tracing-appender = "0.2"
 notify = "7"
 tokio = { version = "1", features = ["sync", "rt-multi-thread"] }
+ignore = "0.4"
 air-core = { path = "../../../crates/air-core" }
 air-fs = { path = "../../../crates/air-fs" }
 air-git = { path = "../../../crates/air-git" }
+air-lsp = { path = "../../../crates/air-lsp" }
 air-search = { path = "../../../crates/air-search" }
 air-win = { path = "../../../crates/air-win" }
 air-workspace = { path = "../../../crates/air-workspace" }

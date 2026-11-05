@@ -62,3 +62,49 @@ function extOf(path: string): string {
   return dot <= 0 ? '' : base.slice(dot + 1).toLowerCase()
 }
 
+/** 扩展名 → LSP 语言 ID（与 Rust 注册表 KNOWN_LANGUAGES 对应）。
+ *  无匹配返回 null（编辑器降级为纯语法模式，2.6）。 */
+export function languageIdForPath(path: string): string | null {
+  switch (extOf(path)) {
+    case 'php':
+    case 'phtml':
+      return 'php'
+    case 'go':
+      return 'go'
+    case 'py':
+      return 'python'
+    case 'rs':
+      return 'rust'
+    case 'ts':
+    case 'tsx':
+      return 'typescript'
+    case 'js':
+    case 'mjs':
+    case 'cjs':
+    case 'jsx':
+      return 'javascript'
+    case 'c':
+    case 'h':
+      return 'c'
+    case 'cpp':
+    case 'hpp':
+    case 'cc':
+      return 'cpp'
+    case 'json':
+      return 'json'
+    case 'yaml':
+    case 'yml':
+      return 'yaml'
+    case 'html':
+    case 'htm':
+      return 'html'
+    case 'css':
+      return 'css'
+    case 'md':
+    case 'markdown':
+      return 'markdown'
+    default:
+      return null
+  }
+}
+

@@ -16,6 +16,7 @@ import { QuickOpen } from '@/features/search/QuickOpen'
 import { SearchPanel } from '@/features/search/SearchPanel'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { GlobalDiff } from '@/features/git/GlobalDiff'
+import { ServerPanel } from '@/features/lsp/ServerPanel'
 import { ExternalChangeBanner } from '@/features/editor/ExternalChangeBanner'
 import { StatusBar } from '@/app/StatusBar'
 import { useUiStore } from '@/app/uiStore'
@@ -146,6 +147,10 @@ export function Layout() {
       <GlobalDiff />
       <CommandBar
         open={useOverlayStore((s) => s.commandBarOpen)}
+        onClose={() => useOverlayStore.getState().closeAll()}
+      />
+      <ServerPanel
+        open={useOverlayStore((s) => s.serverPanelOpen)}
         onClose={() => useOverlayStore.getState().closeAll()}
       />
     </div>

@@ -1,7 +1,12 @@
 // CM6 编辑器封装：单实例复用，按 activePath 换文档（P1-4/P1-5）。
 // 文档切换走 store.pending；编辑事件上报 dirty 与文本缓存。
 import { useEffect, useRef } from 'react'
-import { EditorState, Compartment, type Extension } from '@codemirror/state'
+import {
+  EditorState,
+  Compartment,
+  StateEffect,
+  type Extension,
+} from '@codemirror/state'
 import {
   EditorView,
   keymap,
@@ -35,8 +40,10 @@ import {
 import { useEditorStore, setEditorView } from '@/features/editor/store'
 import { useTabsStore } from '@/features/editor/tabs'
 import { languageForPath } from '@/features/editor/langMap'
+import { languageIdForPath } from '@/features/editor/langMap'
 import { darcula } from '@/features/editor/darcula'
 import { indentGuides } from '@/features/editor/indentGuides'
+import { clientFor, noteDocOpened } from '@/features/lsp/pool'
 
 const langCompartment = new Compartment()
 
@@ -111,10 +118,30 @@ export function CodeEditor() {
     const view = viewRef.current
     if (!view || !pending) return
     const lang = languageForPath(pending.path)
+    // LSP：按语言取 client 并挂插件（2.5 池化；未安装则纯语法模式）
+    const lspId = languageIdForPath(pending.path)
+    if (lspId) {
+      void clientFor(lspId).then((client) => {
+        if (!client) return
+        noteDocOpened(lspId)
+        try {
+          const plugin = client.plugin(`file://${pending.path.replaceAll('\\', '/')}`)
+          const v = viewRef.current
+          if (v && docPathRef.current === pending.path) {
+            v.dispatch({ effects: StateEffect.appendConfig.of(plugin) })
+          }
+        } catch (e) {
+          console.warn('LSP 插件挂载失败（降级语法模式）:', e)
+        }
+      })
+    }
     view.setState(
       EditorState.create({
         doc: pending.text,
-        extensions: [langCompartment.of(lang ?? []), ...baseExtensions()],
+        extensions: [
+          langCompartment.of(lang ?? []),
+          ...baseExtensions(),
+        ],
       }),
     )
     if (pending.cursor) {

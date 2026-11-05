@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod lsp;
 mod menu;
 mod watcher;
 
@@ -21,6 +22,7 @@ fn main() {
         initial_open: Mutex::new(initial_open),
         watcher: watcher::WatcherState::new(),
     };
+    let lsp_state = lsp::LspState::new();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
@@ -37,6 +39,7 @@ fn main() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .manage(state)
+        .manage(lsp_state)
         .invoke_handler(tauri::generate_handler![
             commands::fs_read_file,
             commands::fs_write_file,
@@ -82,12 +85,21 @@ fn main() {
             commands::app_push_recent,
             commands::app_drafts_save,
             commands::app_drafts_load,
-            commands::app_draft_delete
+            commands::app_draft_delete,
+            lsp::lsp_servers_scan,
+            lsp::lsp_start,
+            lsp::lsp_send,
+            lsp::lsp_stop,
+            lsp::lsp_stop_all,
+            lsp::lsp_reap_idle,
+            lsp::project_profile
         ])
         .on_menu_event(menu::handle_menu_event)
         .setup(|app| {
             menu::build_menu(app.handle())?;
             commands::apply_dark_titlebar(app);
+            // 下载的语言服务器经 servers 目录被 PATH 解析（2.6）
+            air_lsp::session::register_servers_on_path();
             Ok(())
         })
         .run(tauri::generate_context!())
