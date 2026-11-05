@@ -1,0 +1,12 @@
+[package]
+name = "air-win"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+air-core = { path = "../air-core" }
+dunce = "1"
+
+[dependencies.windows]
+version = "0.62"
+features = ["Win32_Foundation", "Win32_Graphics_Dwm"]

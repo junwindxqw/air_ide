@@ -1,9 +1,17 @@
 {
   "name": "air-ide-monorepo",
   "private": true,
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
   "scripts": {
     "dev": "pnpm --filter desktop dev:tauri",
     "build": "pnpm --filter desktop build:tauri",
     "check": "pnpm --filter desktop check"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.1"
   }
 }

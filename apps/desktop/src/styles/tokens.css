@@ -1,0 +1,34 @@
+:root[data-theme='darcula-dark'] {
+  --bg-editor: #1e1f22;
+  --bg-toolwindow: #2b2d30;
+  --bg-panel: #1e1f22;
+  --border: #393b40;
+  --bg-hover: #393b40;
+  --bg-selected: #2e436e;
+  --accent: #3574f0;
+  --fg-primary: #dfe1e5;
+  --fg-secondary: #7a7e85;
+  --diff-add-bg: #294436;
+  --diff-del-bg: #484a4d;
+  --diff-mod-bg: #385570;
+  --statusbar-h: 24px;
+  --toolwindow-title-h: 28px;
+  --list-row-h: 22px;
+  --editor-font: 'JetBrains Mono', 'Cascadia Mono', Consolas, 'Microsoft YaHei', monospace;
+  --ui-font: system-ui, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+}
+
+:root[data-theme='intellij-light'] {
+  --bg-editor: #ffffff;
+  --bg-toolwindow: #f7f8fa;
+  --bg-panel: #ffffff;
+  --border: #dfe2e5;
+  --bg-hover: #ebecec;
+  --bg-selected: #d4e2ff;
+  --accent: #3574f0;
+  --fg-primary: #1e1f22;
+  --fg-secondary: #818594;
+  --diff-add-bg: #edfcf1;
+  --diff-del-bg: #fbecdf;
+  --diff-mod-bg: #e2ecfd;
+}

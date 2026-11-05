@@ -41,17 +41,6 @@ impl EncodingKind {
             EncodingKind::Latin1 => "latin1",
         }
     }
-
-    fn rs(self) -> &'static encoding_rs::Encoding {
-        match self {
-            // encoding_rs 无纯 Latin-1，用 Windows-1252 近似（1252 ⊃ Latin-1 的可打印区）。
-            EncodingKind::Latin1 => encoding_rs::WINDOWS_1252,
-            EncodingKind::Utf8 => encoding_rs::UTF_8,
-            EncodingKind::Utf16Le => encoding_rs::UTF_16LE,
-            EncodingKind::Utf16Be => encoding_rs::UTF_16BE,
-            EncodingKind::Gb18030 => encoding_rs::GB18030,
-        }
-    }
 }
 
 /// 行尾类型。
@@ -90,19 +79,19 @@ const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 /// 文本行尾保持原样（调用方用 detect_eol / normalize_eol 处理）。
 pub fn detect_and_decode(bytes: &[u8]) -> (String, EncodingKind, bool) {
     if bytes.starts_with(UTF8_BOM) {
-        let (cow, _, had_errors) = encoding_rs::UTF_8.decode_without_bom_handling(&bytes[3..]);
+        let (cow, had_errors) = encoding_rs::UTF_8.decode_without_bom_handling(&bytes[3..]);
         if !had_errors {
             return (cow.into_owned(), EncodingKind::Utf8, true);
         }
     }
     if bytes.starts_with(&[0xFF, 0xFE]) {
-        let (cow, _, had_errors) = encoding_rs::UTF_16LE.decode_without_bom_handling(&bytes[2..]);
+        let (cow, had_errors) = encoding_rs::UTF_16LE.decode_without_bom_handling(&bytes[2..]);
         if !had_errors {
             return (cow.into_owned(), EncodingKind::Utf16Le, true);
         }
     }
     if bytes.starts_with(&[0xFE, 0xFF]) {
-        let (cow, _, had_errors) = encoding_rs::UTF_16BE.decode_without_bom_handling(&bytes[2..]);
+        let (cow, had_errors) = encoding_rs::UTF_16BE.decode_without_bom_handling(&bytes[2..]);
         if !had_errors {
             return (cow.into_owned(), EncodingKind::Utf16Be, true);
         }
@@ -249,10 +238,12 @@ fn tmp_sibling(path: &Path) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     path.with_extension(format!(
-        "{}.{}.tmp",
-        path.extension().and_then(|e| e.to_str()).unwrap_or(""),
-        std::process::id() * 1_000_000 + (now % 1_000_000) as u32
+        "{}.{}.{}.tmp",
+        ext,
+        std::process::id(),
+        now % 1_000_000_000
     ))
 }
 

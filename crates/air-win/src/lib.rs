@@ -3,14 +3,16 @@
 
 use std::path::PathBuf;
 
-use air_core::AirResult;
+use air_core::{AirError, AirResult};
 
 /// DWM 暗色标题栏（3.12.3）：Win11 属性 20，Win10 2004-21H2 属性 19。
 /// 属性不被支持时静默降级为系统默认标题栏（不做自绘，D13）。
 #[cfg(windows)]
 pub fn apply_dark_titlebar(hwnd: isize, dark: bool) -> AirResult<()> {
-    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE};
     use windows::Win32::Foundation::HWND;
+    use windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWINDOWATTRIBUTE,
+    };
 
     let hwnd = HWND(hwnd as *mut _);
     let value: i32 = if dark { 1 } else { 0 };
@@ -18,14 +20,19 @@ pub fn apply_dark_titlebar(hwnd: isize, dark: bool) -> AirResult<()> {
         // Win11 / 新 Win10：属性 20
         let r20 = DwmSetWindowAttribute(
             hwnd,
-            DWMWA_USE_IMMERSIVE_DARK_MODE.0,
-            &value as *const _ as *const _,
+            DWMWA_USE_IMMERSIVE_DARK_MODE,
+            &value as *const i32 as *const core::ffi::c_void,
             std::mem::size_of::<i32>() as u32,
         );
         if r20.is_err() {
             // Win10 2004-21H2：同一语义属性编号 19
-            let r19 = DwmSetWindowAttribute(hwnd, 19, &value as *const _ as *const _, 4);
-            r19.ok()?;
+            let r19 = DwmSetWindowAttribute(
+                hwnd,
+                DWMWINDOWATTRIBUTE(19),
+                &value as *const i32 as *const core::ffi::c_void,
+                4,
+            );
+            r19.map_err(|e| AirError::other(format!("DWM 属性 19 不可用: {e}")))?;
         }
     }
     Ok(())

@@ -47,6 +47,8 @@ impl Serialize for AirError {
 /// IPC 二进制信封（fs_read_file 等大 payload 用，见 3.5）：
 /// `[u32 LE meta_len][meta JSON][payload bytes]`
 pub mod envelope {
+    use super::{AirError, AirResult};
+
     pub fn encode(meta: &[u8], payload: &[u8]) -> Vec<u8> {
         let mut out = Vec::with_capacity(4 + meta.len() + payload.len());
         out.extend_from_slice(&(meta.len() as u32).to_le_bytes());

@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"P0 能力集：核心 IPC + 对话框 + 窗口状态","local":true,"windows":["main"],"permissions":["core:default","dialog:default","window-state:default"]}}

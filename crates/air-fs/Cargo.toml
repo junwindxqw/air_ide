@@ -1,0 +1,9 @@
+[package]
+name = "air-fs"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+air-core = { path = "../air-core" }
+serde.workspace = true
+encoding_rs = "0.8"
