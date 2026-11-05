@@ -12,7 +12,7 @@ import {
 import { useEditorStore } from '@/features/editor/store'
 import { useTabsStore } from '@/features/editor/tabs'
 import { useUiStore } from '@/app/uiStore'
-import { session as sessionIpc, recentProjects } from '@/ipc/session'
+import { session as sessionIpc, recentProjects, drafts as draftsIpc } from '@/ipc/session'
 import { fsWatch, onExternalChange, onRescan } from '@/ipc/watch'
 import { useExplorerStore } from '@/features/explorer/store'
 
@@ -91,7 +91,7 @@ export default function App() {
   return <Layout />
 }
 
-/** 恢复上次会话（3.10）：workspaceRoot + 打开的 tab；路径不存在静默跳过。 */
+/** 恢复上次会话（3.10）：workspaceRoot + 打开的 tab + 草稿内容。 */
 async function restoreSession() {
   try {
     const s = await sessionIpc.load()
@@ -101,12 +101,29 @@ async function restoreSession() {
       await fsWatch(s.workspaceRoot)
       void recentProjects.push(s.workspaceRoot)
     }
+
+    // 草稿优先：崩溃前未保存的内容进 textCache 并标脏（P2 补）
+    let draftCount = 0
+    try {
+      const drafts = await draftsIpc.load()
+      for (const d of drafts) {
+        useTabsStore.getState().cacheText(d.path, d.text)
+        draftCount += 1
+      }
+    } catch (e) {
+      console.error('草稿加载失败', e)
+    }
+
     for (const entry of s.openFiles) {
-      const { fsReadFile } = await import('@/ipc/fs')
       try {
+        const { fsReadFile } = await import('@/ipc/fs')
         const loaded = await fsReadFile(entry.path)
         if (loaded.meta.isBinary) continue
+        const cached = useTabsStore.getState().getCachedText(entry.path)
         useTabsStore.getState().openFile(entry.path, loaded.meta, false)
+        if (cached !== undefined) {
+          useTabsStore.getState().setDirty(entry.path, true)
+        }
       } catch {
         // 路径不存在：静默跳过（3.10 恢复语义）
       }
@@ -114,6 +131,11 @@ async function restoreSession() {
     if (s.activeFile) {
       useTabsStore.getState().setActive(s.activeFile)
       void useEditorStore.getState().openFile(s.activeFile)
+    }
+    if (draftCount > 0) {
+      useEditorStore
+        .getState()
+        .flash(`已恢复 ${draftCount} 个未保存文件`)
     }
   } catch (e) {
     console.error('会话恢复失败', e)

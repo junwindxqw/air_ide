@@ -1,5 +1,5 @@
 // 四区布局（P1）：左 Project（文件树）/ 中编辑器（tab 栏 + CM6）/ 右 Git（Changes）/ 底状态栏。
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import type { ImperativePanelHandle } from 'react-resizable-panels'
 import { CodeEditor } from '@/features/editor/CodeEditor'
@@ -7,10 +7,12 @@ import { TabBar } from '@/features/editor/TabBar'
 import { FileTree } from '@/features/explorer/FileTree'
 import { FileTreeMenu } from '@/features/explorer/FileTreeMenu'
 import { ChangesPanel } from '@/features/git/ChangesPanel'
+import { LogView } from '@/features/git/LogView'
 import { CommandPalette } from '@/features/command/CommandPalette'
 import { QuickOpen } from '@/features/search/QuickOpen'
 import { SearchPanel } from '@/features/search/SearchPanel'
 import { SettingsPage } from '@/features/settings/SettingsPage'
+import { GlobalDiff } from '@/features/git/GlobalDiff'
 import { ExternalChangeBanner } from '@/features/editor/ExternalChangeBanner'
 import { StatusBar } from '@/app/StatusBar'
 import { useUiStore } from '@/app/uiStore'
@@ -22,6 +24,8 @@ export function Layout() {
   const leftOpen = useUiStore((s) => s.leftOpen)
   const rightOpen = useUiStore((s) => s.rightOpen)
   const registerFocusEditor = useUiStore((s) => s.registerFocusEditor)
+  const workspaceRoot = useUiStore((s) => s.workspaceRoot)
+  const [gitTab, setGitTab] = useState<'changes' | 'log'>('changes')
   const setLastToolWindow = (side: 'left' | 'right') =>
     useUiStore.setState({ lastToolWindow: side })
 
@@ -86,9 +90,25 @@ export function Layout() {
             onPointerDown={() => setLastToolWindow('right')}
           >
             <div className="tool-window right">
-              <div className="tool-window-title">Git</div>
+              <div className="tool-window-title">
+                <span>Git</span>
+                <span className="tool-window-tabs">
+                  <button
+                    className={`tw-tab${gitTab === 'changes' ? ' on' : ''}`}
+                    onClick={() => setGitTab('changes')}
+                  >
+                    Changes
+                  </button>
+                  <button
+                    className={`tw-tab${gitTab === 'log' ? ' on' : ''}`}
+                    onClick={() => setGitTab('log')}
+                  >
+                    Log
+                  </button>
+                </span>
+              </div>
               <div className="tool-window-body no-pad">
-                <ChangesPanel />
+                {gitTab === 'changes' ? <ChangesPanel /> : <LogView repo={workspaceRoot ?? ''} onClose={() => setGitTab('changes')} />}
               </div>
             </div>
           </Panel>
@@ -112,6 +132,7 @@ export function Layout() {
         open={useOverlayStore((s) => s.settingsOpen)}
         onClose={() => useOverlayStore.getState().closeAll()}
       />
+      <GlobalDiff />
     </div>
   )
 }

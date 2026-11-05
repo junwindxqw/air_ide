@@ -5,6 +5,7 @@ import { useEditorStore, getEditorView } from '@/features/editor/store'
 import { useTabsStore } from '@/features/editor/tabs'
 import { useOverlayStore } from '@/app/overlayStore'
 import { useExplorerStore } from '@/features/explorer/store'
+import { useDiffOverlay } from '@/features/git/openDiff'
 import '@/styles/tokens.css'
 import '@/styles/base.css'
 
@@ -41,6 +42,14 @@ if (import.meta.env.DEV) {
       const { gitDiffFile } = await import('@/ipc/git')
       return gitDiffFile(repo, path, false)
     },
+    openDiffFor: async (relPath: string) => {
+      const { openDiffFor } = await import('@/features/git/openDiff')
+      return openDiffFor(relPath)
+    },
+    closeDiff: async () => {
+      const { closeDiff } = await import('@/features/git/openDiff')
+      return closeDiff()
+    },
     openWorkspace: async (p: string) => {
       const { openWorkspace } = await import('@/features/command/commands')
       return openWorkspace(p)
@@ -62,6 +71,10 @@ if (import.meta.env.DEV) {
         childDirs: [...s.children.keys()],
         selected: s.selected,
       }
+    },
+    debugDiff: () => {
+      const s = useDiffOverlay.getState()
+      return { hasDiff: !!s.diff, path: s.diff?.path ?? null, ignoreWs: s.ignoreWs, hunks: s.diff?.hunks.length ?? 0 }
     },
   }
 }

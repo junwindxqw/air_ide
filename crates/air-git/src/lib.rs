@@ -306,8 +306,17 @@ pub struct FileDiff {
 }
 
 /// 取单文件 diff（unstaged 或 staged）。path 相对 repo 根。
-/// `ignore_whitespace` 对应 `-w`（P2 交付开关，参数先留）。
 pub fn diff_file(workspace_root: &Path, path: &str, staged: bool) -> AirResult<FileDiff> {
+    diff_file_with_opts(workspace_root, path, staged, false)
+}
+
+/// `ignore_whitespace` 对应 `-w`（P2 的"忽略空白差异"开关）。
+pub fn diff_file_with_opts(
+    workspace_root: &Path,
+    path: &str,
+    staged: bool,
+    ignore_whitespace: bool,
+) -> AirResult<FileDiff> {
     let repo = find_repo_root(workspace_root)
         .ok_or_else(|| AirError::Git("非 Git 仓库".into()))?;
     let mut args = vec![
@@ -316,6 +325,9 @@ pub fn diff_file(workspace_root: &Path, path: &str, staged: bool) -> AirResult<F
         "--no-ext-diff".to_string(),
         "-U3".to_string(),
     ];
+    if ignore_whitespace {
+        args.push("-w".to_string());
+    }
     if staged {
         args.push("--cached".to_string());
     }
@@ -324,6 +336,117 @@ pub fn diff_file(workspace_root: &Path, path: &str, staged: bool) -> AirResult<F
     let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
     let out = run_git(&repo, &refs)?;
     Ok(parse_diff(&out, path))
+}
+
+// ── log / blame（P2）──
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogEntry {
+    pub sha: String,
+    pub short_sha: String,
+    pub author: String,
+    pub date: String,
+    pub subject: String,
+    pub refs: Vec<String>,
+    /// 简化分支图列号（P2：统一主干列，真实图形后续完善）
+    pub graph_col: u32,
+}
+
+/// 分页读 log。
+pub fn log(workspace_root: &Path, skip: u32, limit: u32) -> AirResult<Vec<LogEntry>> {
+    let repo = find_repo_root(workspace_root)
+        .ok_or_else(|| AirError::Git("非 Git 仓库".into()))?;
+    let fmt = "%H%x1f%h%x1f%an%x1f%ad%x1f%s%x1f%D";
+    let out = run_git(
+        &repo,
+        &[
+            "log",
+            "--date=short",
+            &format!("--skip={skip}"),
+            &format!("-n{limit}"),
+            &format!("--format={fmt}"),
+        ],
+    )?;
+    let mut entries = Vec::new();
+    for line in out.lines() {
+        let f: Vec<&str> = line.split('\u{1f}').collect();
+        if f.len() < 6 {
+            continue;
+        }
+        let refs: Vec<String> = f[5]
+            .split(", ")
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect();
+        entries.push(LogEntry {
+            sha: f[0].to_string(),
+            short_sha: f[1].to_string(),
+            author: f[2].to_string(),
+            date: f[3].to_string(),
+            subject: f[4].to_string(),
+            refs,
+            graph_col: 0,
+        });
+    }
+    Ok(entries)
+}
+
+/// blame：每行的 commit 摘要（`git blame --line-porcelain`）。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlameLine {
+    pub line_no: u32,
+    pub sha: String,
+    pub short_sha: String,
+    pub author: String,
+    pub date: String,
+    pub summary: String,
+}
+
+pub fn blame(workspace_root: &Path, path: &str) -> AirResult<Vec<BlameLine>> {
+    let repo = find_repo_root(workspace_root)
+        .ok_or_else(|| AirError::Git("非 Git 仓库".into()))?;
+    let out = run_git(&repo, &["blame", "--line-porcelain", "--", path])?;
+
+    let mut lines = Vec::new();
+    let mut cur: Option<BlameLine> = None;
+    for raw in out.lines() {
+        // 头部行：<sha> <origLine> <finalLine> [numLines]
+        if !raw.starts_with('\t') && !raw.starts_with(' ') {
+            let f: Vec<&str> = raw.split(' ').collect();
+            if f.len() >= 3 && f[0].len() == 40 {
+                cur = Some(BlameLine {
+                    sha: f[0].to_string(),
+                    short_sha: f[0][..8.min(f[0].len())].to_string(),
+                    author: String::new(),
+                    date: String::new(),
+                    summary: String::new(),
+                    line_no: f[2].parse().unwrap_or(0),
+                });
+                continue;
+            }
+        }
+        if let Some(c) = cur.as_mut() {
+            if let Some(v) = raw.strip_prefix("author ") {
+                c.author = v.to_string();
+            } else if let Some(v) = raw.strip_prefix("author-time ") {
+                // Unix 时间戳 → 日期（简化：只取到日）
+                if let Ok(ts) = v.parse::<i64>() {
+                    let days = ts / 86400;
+                    c.date = format!("day+{days}");
+                }
+            } else if let Some(v) = raw.strip_prefix("summary ") {
+                c.summary = v.to_string();
+            } else if raw.starts_with('\t') {
+                // 行内容：blame 条目结束
+                if let Some(done) = cur.take() {
+                    lines.push(done);
+                }
+            }
+        }
+    }
+    Ok(lines)
 }
 
 /// 解析 unified diff。未跟踪文件走 `/dev/null` → b/<path> 形式。

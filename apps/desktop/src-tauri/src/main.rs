@@ -51,6 +51,8 @@ fn main() {
             commands::app_report_benchmark,
             commands::git_status,
             commands::git_diff_file,
+            commands::git_log,
+            commands::git_blame,
             commands::search_query,
             commands::search_cancel,
             commands::fs_watch,

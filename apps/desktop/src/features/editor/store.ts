@@ -99,6 +99,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       })
       useTabsStore.getState().setDirty(activePath, false)
       useTabsStore.getState().clearCache(activePath)
+      // 草稿已无需保留（保存成功即删，3.10）
+      try {
+        const { drafts: draftsIpc } = await import('@/ipc/session')
+        await draftsIpc.remove(activePath)
+      } catch {
+        // 草稿删除失败不阻塞保存成功提示
+      }
       get().flash('已保存')
     } catch (e) {
       const err = normalizeError(e)

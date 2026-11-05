@@ -2,6 +2,36 @@
 // 高频数据（文档文本）不进 store，由 CM6 实例持有（2.10）。
 import { create } from 'zustand'
 import type { FileMeta } from '@/ipc/fs'
+import { drafts as draftsIpc } from '@/ipc/session'
+
+// ── 草稿防抖落盘（3.10：1s 防抖；单文件 ≤512KB、总量 ≤8MB，Rust 侧兜底）──
+let draftTimer: ReturnType<typeof setTimeout> | null = null
+
+export function scheduleDraftSave(): void {
+  if (draftTimer) clearTimeout(draftTimer)
+  draftTimer = setTimeout(() => {
+    draftTimer = null
+    void flushDrafts()
+  }, 1000)
+}
+
+/** 立即落盘当前所有脏 tab 的草稿。 */
+export async function flushDrafts(): Promise<void> {
+  const { tabs, textCache } = useTabsStore.getState()
+  const dirty = tabs.filter((t) => t.dirty && textCache.has(t.path))
+  if (dirty.length === 0) return
+  try {
+    const results = await draftsIpc.save(
+      dirty.map((t) => ({ path: t.path, text: textCache.get(t.path) ?? '' })),
+    )
+    const oversize = results.filter((ok) => !ok).length
+    if (oversize > 0) {
+      console.warn(`${oversize} 个草稿因体积超限未落盘（3.10）`)
+    }
+  } catch (e) {
+    console.error('草稿保存失败', e)
+  }
+}
 
 export interface EditorTab {
   path: string
@@ -129,12 +159,15 @@ export const useTabsStore = create<TabsState>((set, get) => ({
       tabs: s.tabs.map((t) => (t.path === path ? { ...t, cursor: { line, col } } : t)),
     })),
 
-  cacheText: (path, text) =>
+  cacheText: (path, text) => {
     set((s) => {
       const textCache = new Map(s.textCache)
       textCache.set(path, text)
       return { textCache }
-    }),
+    })
+    // 草稿防抖落盘（3.10：1s 防抖；保存成功后清缓存并删草稿）
+    scheduleDraftSave()
+  },
 
   getCachedText: (path) => get().textCache.get(path),
 

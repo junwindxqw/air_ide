@@ -412,9 +412,36 @@ pub async fn git_diff_file(
     repo: String,
     path: String,
     staged: bool,
+    ignore_whitespace: Option<bool>,
 ) -> Result<air_git::FileDiff, AirError> {
     let root = PathBuf::from(repo);
-    tauri::async_runtime::spawn_blocking(move || air_git::diff_file(&root, &path, staged))
+    let iw = ignore_whitespace.unwrap_or(false);
+    tauri::async_runtime::spawn_blocking(move || {
+        air_git::diff_file_with_opts(&root, &path, staged, iw)
+    })
+    .await
+    .map_err(|e| AirError::other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_log(
+    repo: String,
+    skip: Option<u32>,
+    limit: Option<u32>,
+) -> Result<Vec<air_git::LogEntry>, AirError> {
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || air_git::log(&root, skip.unwrap_or(0), limit.unwrap_or(100)))
+        .await
+        .map_err(|e| AirError::other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_blame(
+    repo: String,
+    path: String,
+) -> Result<Vec<air_git::BlameLine>, AirError> {
+    let root = PathBuf::from(repo);
+    tauri::async_runtime::spawn_blocking(move || air_git::blame(&root, &path))
         .await
         .map_err(|e| AirError::other(e.to_string()))?
 }

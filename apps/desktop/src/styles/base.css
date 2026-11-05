@@ -895,3 +895,290 @@ body {
   font-size: 11px;
   color: #6AAB73;
 }
+
+/* ── P2：双栏 diff ── */
+
+.split-diff {
+  position: fixed;
+  inset: 40px 20px 20px;
+  z-index: 58;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-editor);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.split-diff-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-toolwindow);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.diff-nav-btn {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--fg-primary);
+  width: 24px;
+  height: 22px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.diff-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.diff-nav-btn:not(:disabled):hover {
+  background: var(--bg-hover);
+}
+
+.diff-nav-count {
+  font-size: 11px;
+  color: var(--fg-secondary);
+}
+
+.diff-file-name {
+  font-size: 12px;
+  color: var(--fg-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 40%;
+}
+
+.diff-toolbar-spacer {
+  flex: 1;
+}
+
+.diff-read-progress {
+  font-size: 11px;
+  color: var(--fg-secondary);
+  white-space: nowrap;
+}
+
+.diff-toggle {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--fg-secondary);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.diff-toggle.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* hunk 间折叠（P2-3） */
+.diff-fold-gap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 2px 0;
+  background: var(--bg-toolwindow);
+  color: var(--fg-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.diff-fold-gap:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+/* ── P2：Git Log 视图 ── */
+
+.tool-window-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tool-window-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.tw-tab {
+  border: none;
+  background: none;
+  color: var(--fg-secondary);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.tw-tab:hover {
+  background: var(--bg-hover);
+}
+
+.tw-tab.on {
+  background: var(--bg-selected);
+  color: var(--fg-primary);
+}
+
+.log-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.log-list {
+  flex: 1;
+  overflow: auto;
+}
+
+.log-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.log-row:hover {
+  background: var(--bg-hover);
+}
+
+.log-graph {
+  color: var(--accent);
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+.log-sha {
+  font-family: var(--editor-font);
+  font-size: 11px;
+  color: #2ACCB8;
+  flex-shrink: 0;
+}
+
+.log-subject {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-refs {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.log-ref {
+  font-size: 10px;
+  color: #CF8E6D;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.log-author,
+.log-date {
+  font-size: 11px;
+  color: var(--fg-secondary);
+  flex-shrink: 0;
+}
+
+.log-author {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-footer {
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.log-status {
+  font-size: 11px;
+  color: var(--fg-secondary);
+}
+
+.split-diff-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.split-diff-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.split-diff-pane + .split-diff-pane {
+  border-left: 1px solid var(--border);
+}
+
+.split-diff-pane-title {
+  font-size: 11px;
+  color: var(--fg-secondary);
+  padding: 3px 10px;
+  background: var(--bg-toolwindow);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.split-diff-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.split-diff-editor .cm-editor {
+  height: 100%;
+}
+
+.split-diff-editor .cm-editor.cm-focused {
+  outline: none !important;
+}
+
+/* diff 行着色（Decoration.line class） */
+.diff-line-add {
+  background: var(--diff-add-bg);
+}
+
+.diff-line-delete {
+  background: var(--diff-del-bg);
+}
+
+/* 词级高亮（mark decoration，P2-2） */
+.cm-diff-word-add {
+  background: rgba(106, 171, 115, 0.35);
+  border-radius: 2px;
+}
+
+.cm-diff-word-del {
+  background: rgba(207, 142, 109, 0.35);
+  border-radius: 2px;
+}
