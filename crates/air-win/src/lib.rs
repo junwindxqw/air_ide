@@ -10,6 +10,29 @@ pub mod jump_list;
 pub mod taskbar;
 pub mod toast;
 
+/// 应用 AppUserModelID（AUMID）。
+///
+/// 必须与安装器写入开始菜单快捷方式的 AUMID 一致：Tauri 的 NSIS 模板用
+/// `{{bundle_id}}`（即 tauri.conf.json 的 `identifier`）调用 `SetLnkAppUserModelId`。
+/// 通知中心持久化、任务栏分组与跳转列表归属都依赖这个值。
+pub const APP_ID: &str = "com.airide.app";
+
+/// 设置进程级 AUMID（启动时调用一次）。从快捷方式启动时 Windows 会自带 AUMID，
+/// 但直接双击 exe / 更新重启时需要显式设置，否则跳转列表与通知归属会错位。
+#[cfg(windows)]
+pub fn init_app_id() {
+    use windows::core::HSTRING;
+    use windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
+
+    let id = HSTRING::from(APP_ID);
+    unsafe {
+        let _ = SetCurrentProcessExplicitAppUserModelID(&id);
+    }
+}
+
+#[cfg(not(windows))]
+pub fn init_app_id() {}
+
 /// 判断进程是否仍存活（P5-6：避免并发/更新重启时误报「上次未正常退出」）。
 #[cfg(windows)]
 pub fn process_alive(pid: u32) -> bool {

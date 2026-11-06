@@ -5,9 +5,6 @@ use std::path::{Path, PathBuf};
 
 use air_core::{AirError, AirResult};
 
-/// Jump List 使用的 AppUserModelID（与快捷方式无关，仅用于归属）。
-pub const APP_ID: &str = "junwind.AirIDE";
-
 /// 分类名（资源管理器右键任务栏图标时看到的分组）。
 pub const CATEGORY_TITLE: &str = "最近项目";
 
@@ -188,7 +185,7 @@ fn apply_jump_list_inner(entries: &[JumpEntry]) -> AirResult<()> {
             .map_err(|e| AirError::other(format!("创建跳转列表失败: {e}")))?;
     unsafe {
         destination
-            .SetAppID(&HSTRING::from(APP_ID))
+            .SetAppID(&HSTRING::from(crate::APP_ID))
             .map_err(|e| AirError::other(format!("设置 AppID 失败: {e}")))?;
     }
 
