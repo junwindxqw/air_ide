@@ -7,6 +7,7 @@ import { fsReadFile, fsWriteFile } from '@/ipc/fs'
 import type { FileMeta } from '@/ipc/fs'
 import { normalizeError } from '@/ipc/invoke'
 import { useTabsStore } from '@/features/editor/tabs'
+import { perfStart, perfEnd } from '@/app/perf'
 
 /** 标记"外部重载"变更：不进 undo 栈（3.11）。 */
 export const externalAnnotation = Annotation.define<boolean>()
@@ -45,6 +46,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   externalChange: null,
 
   openFile: async (path) => {
+    // 大文件打开计时（方案 5.3）：起点在读盘前，终点在 CodeEditor 首帧后
+    perfStart('air.open_file')
     set({ loading: true, statusFlash: null, externalChange: null })
     try {
       // 未保存内容优先：textCache 里有就用（切 tab 往返不丢编辑）
@@ -57,7 +60,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         text = cached
         useTabsStore.getState().setDirty(path, true)
       } else {
+        perfStart('air.open_file_read')
         const loaded = await fsReadFile(path)
+        perfEnd('air.open_file_read')
         meta = loaded.meta
         text = loaded.text
       }

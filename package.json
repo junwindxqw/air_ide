@@ -9,7 +9,9 @@
   "scripts": {
     "dev": "pnpm --filter desktop dev:tauri",
     "build": "pnpm --filter desktop build:tauri",
-    "check": "pnpm --filter desktop check"
+    "check": "pnpm --filter desktop check",
+    "e2e:smoke": "node scripts/e2e/run-all.mjs --level smoke",
+    "e2e:regression": "node scripts/e2e/run-all.mjs --level regression"
   },
   "devDependencies": {
     "@codemirror/lsp-client": "^6.3.0",

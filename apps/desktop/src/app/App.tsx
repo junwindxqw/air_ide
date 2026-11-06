@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { Layout } from '@/app/Layout'
-import '@/features/command/commands'
+import { openWorkspace } from '@/features/command/commands'
 import {
   chordFromEvent,
   commandForChord,
@@ -11,9 +11,15 @@ import {
 } from '@/features/command/registry'
 import { useEditorStore } from '@/features/editor/store'
 import { useTabsStore } from '@/features/editor/tabs'
+import { registerFolderDrop } from '@/features/editor/dropOpen'
+import { useSettingsStore } from '@/features/settings/settingsRuntime'
+import { scheduleStartupUpdaterCheck } from '@/features/settings/updaterRuntime'
 import { useUiStore } from '@/app/uiStore'
 import { session as sessionIpc, recentProjects, drafts as draftsIpc } from '@/ipc/session'
 import { fsWatch, onExternalChange, onRescan } from '@/ipc/watch'
+import { fsListDir } from '@/ipc/fs'
+import { initWindowsNotifications } from '@/features/win/notify'
+import { initTaskbarBridge } from '@/features/win/taskbar'
 import { useExplorerStore } from '@/features/explorer/store'
 
 export default function App() {
@@ -34,12 +40,17 @@ export default function App() {
     window.addEventListener('keydown', onKey)
 
     const unlisteners: Array<Promise<() => void>> = [
+      registerFolderDrop(),
       listen<string>('menu://action', (e) => {
         void executeCommand(e.payload)
       }),
       listen<string>('app://open-path', (e) => {
-        void useEditorStore.getState().openFile(e.payload)
+        void openPathTarget(e.payload)
       }),
+      // P5-6：系统通知桥（监听 app://notify + LSP 安装结果 + 崩溃记录提示）
+      initWindowsNotifications(),
+      // P5-6：任务栏进度事件桥（ipc 层发事件，这里驱动 win_taskbar_*）
+      Promise.resolve(initTaskbarBridge()),
       // 3.11 外部修改三态：干净 tab 自动重载；脏 tab 弹横幅
       onExternalChange((paths) => {
         const activePath = useTabsStore.getState().activePath
@@ -75,20 +86,40 @@ export default function App() {
     }
   }, [])
 
-  // 启动：接收命令行初始路径 + 恢复会话 + 冷启动埋点
+  // 启动：设置 hydration（主题/字号/行号等）+ 命令行初始路径 + 恢复会话 + 冷启动埋点
   useEffect(() => {
+    // P5-7：设置 hydration 结束后再决定是否静默检查更新（空闲时执行，不阻塞首屏）
+    void useSettingsStore
+      .getState()
+      .hydrate()
+      .then(() => {
+        scheduleStartupUpdaterCheck(useSettingsStore.getState().settings.system.autoUpdate)
+      })
     void invoke('app_report_benchmark', {
       metric: 'cold_start_interactive_ms',
       ms: performance.now(),
       detail: 'React 首次 effect',
     })
     void invoke<string | null>('app_take_initial_args').then((path) => {
-      if (path) void useEditorStore.getState().openFile(path)
+      if (path) void openPathTarget(path)
     })
     void restoreSession()
   }, [])
 
   return <Layout />
+}
+
+/** P5-6：跳转列表/右键菜单传路径启动——目录当作工作区打开，文件按普通文件打开。 */
+async function openPathTarget(path: string) {
+  let isDir = false
+  try {
+    await fsListDir(path)
+    isDir = true
+  } catch {
+    // 不是目录 → 按文件打开
+  }
+  if (isDir) await openWorkspace(path)
+  else await useEditorStore.getState().openFile(path)
 }
 
 /** 恢复上次会话（3.10）：workspaceRoot + 打开的 tab + 草稿内容。 */

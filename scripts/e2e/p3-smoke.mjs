@@ -1,11 +1,9 @@
 // P3 冒烟测试：hunk 级 stage/unstage/discard、提交、分支、命令条。
 const CDP_HTTP = 'http://127.0.0.1:9222'
 
-const results = []
-function check(name, ok, detail = '') {
-  results.push({ name, ok })
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
-}
+import { createReporter } from './lib/harness.mjs'
+
+const { check, skip, finish } = createReporter('p3-smoke', 'P3 冒烟')
 
 import { mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -70,7 +68,7 @@ rmSync(REPO, { recursive: true, force: true })
 mkdirSync(join(REPO, 'src'), { recursive: true })
 const base = Array.from({ length: 20 }, (_, i) => `line${i + 1}`).join('\n') + '\n'
 writeFileSync(join(REPO, 'src', 'Service.php'), base)
-execSync(`git init -q && git config user.email t@t.com && git config user.name t && git config core.autocrlf false && git add -A && git commit -qm init`, { cwd: REPO, shell: 'bash' })
+execSync(`git init -q && git config user.email t@t.com && git config user.name t && git config core.autocrlf false && git add -A && git commit -qm init`, { cwd: REPO })
 
 const modified = base.split('\n')
 modified[1] = 'CHANGED-2'
@@ -153,12 +151,50 @@ await sleep(600)
 const branches2 = await evaluate(cdp, `window.__air.gitBranches(${JSON.stringify(REPO)})`)
 check('新建分支 feature-x', branches2?.some((b) => b.name === 'feature-x') ?? false, JSON.stringify(branches2?.map((b) => b.name)))
 
-// 8. 命令条
-await evaluate(cdp, `window.__air.gitRun('cmd-test', ${JSON.stringify(REPO)}, ['status', '--short'])`)
-await sleep(1500)
-const cmdOut = await evaluate(cdp, `document.querySelector('.command-bar-output')?.textContent ?? ''`)
-// 命令条 UI 未打开时无输出面板；直接验证 IPC 可用即通过
-check('Git 命令条 IPC 可用（status --short 退出码 0）', true)
+// 8. 命令条：从命令面板打开 → 真实执行 status --short → 读取输出与退出码
+await evaluate(cdp, `window.__air.openPalette()`)
+await sleep(300)
+const openedBar = await evaluate(cdp, `(() => {
+  const items = [...document.querySelectorAll('.palette-item')]
+  const item = items.find((el) => el.textContent.includes('Git 命令条'))
+  if (!item) return { ok: false, items: items.map((el) => el.textContent) }
+  item.click()
+  return { ok: true }
+})()`)
+check('命令条可从命令面板打开', openedBar.ok === true, JSON.stringify(openedBar))
+
+if (openedBar.ok) {
+  await sleep(500)
+  const typed = await evaluate(cdp, `(() => {
+    const input = document.querySelector('.command-bar-input')
+    if (!input) return { ok: false, reason: '未找到 .command-bar-input' }
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    setter.call(input, 'status --short')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    return { ok: true, value: input.value }
+  })()`)
+  check('命令条输入框写入 status --short', typed.ok === true && typed.value === 'status --short', JSON.stringify(typed))
+
+  await sleep(200)
+  const clicked = await evaluate(cdp, `(() => {
+    const btn = [...document.querySelectorAll('.command-bar .commit-btn.primary')]
+      .find((b) => b.textContent.trim() === '执行')
+    if (!btn) return false
+    btn.click()
+    return true
+  })()`)
+  check('命令条执行按钮可点击', clicked === true)
+
+  await sleep(1500)
+  const cmdOut = await evaluate(cdp, `document.querySelector('.command-bar-output')?.textContent ?? ''`)
+  check(
+    '命令条执行 status --short（退出码 0 且输出含变更文件）',
+    cmdOut.includes('退出码 0') && cmdOut.includes('src/Service.php'),
+    JSON.stringify(cmdOut),
+  )
+  await evaluate(cdp, `window.__air.closeOverlays()`)
+  await sleep(300)
+}
 
 // 9. discard hunk（工作区还原）
 // soft-reset 后改动在暂存区，先 unstage 让它们回到未暂存态
@@ -176,10 +212,5 @@ check(
 )
 
 // ── 汇总 ──
-const failed = results.filter((r) => !r.ok)
-console.log(`\n=== P3 冒烟结果: ${results.length - failed.length}/${results.length} 通过 ===`)
-if (failed.length > 0) {
-  console.log('失败项:', failed.map((f) => f.name).join(' | '))
-  process.exitCode = 1
-}
+finish('P3 冒烟')
 cdp.close()

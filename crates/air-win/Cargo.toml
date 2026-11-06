@@ -7,6 +7,17 @@ edition.workspace = true
 air-core = { path = "../air-core" }
 dunce = "1"
 
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+
 [dependencies.windows]
 version = "0.62"
-features = ["Win32_Foundation", "Win32_Graphics_Dwm"]
+features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_System_Com",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+    "Win32_UI_WindowsAndMessaging",
+]

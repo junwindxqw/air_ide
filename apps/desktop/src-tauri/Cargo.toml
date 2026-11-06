@@ -5,12 +5,15 @@ edition.workspace = true
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+# P5：给 Windows 测试二进制嵌入 comctl32 v6 清单（compile_for_tests → rustc-link-arg-tests）
+embed-resource = "3"
 
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
@@ -27,5 +30,12 @@ air-search = { path = "../../../crates/air-search" }
 air-win = { path = "../../../crates/air-win" }
 air-workspace = { path = "../../../crates/air-workspace" }
 
+[dev-dependencies]
+# P5-7：updater 集成测试用 mock runtime 驱动真实的 check/download 流程
+tauri = { version = "2", features = ["test"] }
+# P5-7：发布脚本产物验签（与 tauri-plugin-updater 使用同一 minisign 校验实现）
+minisign-verify = "0.3"
+
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_UI_WindowsAndMessaging"] }
+winreg = "0.55"

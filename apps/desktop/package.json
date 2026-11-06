@@ -8,6 +8,8 @@
     "dev:tauri": "tauri dev",
     "build": "tsc --noEmit && vite build",
     "build:tauri": "tauri build",
+    "release:win": "node ../../scripts/release/release.mjs",
+    "verify:updater": "node ../../scripts/release/verify-updater.mjs",
     "check": "tsc --noEmit && eslint src && vitest run",
     "test": "vitest run"
   },
@@ -29,6 +31,7 @@
     "@codemirror/view": "^6.34.0",
     "@lezer/highlight": "^1.2.0",
     "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.14.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-resizable-panels": "^2.1.0",

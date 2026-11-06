@@ -14,10 +14,11 @@ export const darculaEditorTheme = EditorView.theme(
     '.cm-content': {
       caretColor: '#AEAFAD',
       fontFamily: 'var(--editor-font)',
-      fontSize: '13px',
+      fontSize: 'var(--editor-font-size, 13px)',
     },
     '.cm-scroller': {
-      lineHeight: '1.2',
+      // 3.12.2：行高必须是整数 px（默认 13px × 1.2 取整为 16px）
+      lineHeight: 'var(--editor-line-height, 16px)',
       fontFamily: 'var(--editor-font)',
     },
     '.cm-gutters': {

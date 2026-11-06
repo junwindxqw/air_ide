@@ -41,13 +41,27 @@ while ((Get-Date) -lt $deadline) {
 $cold = ((Get-Date) - $t0).TotalMilliseconds
 Write-Bench "cold_start_process_to_interactive" $cold "ms" "含 WebView2 冷启（dev 模式）"
 
-# 等前端稳定后采集内存（按父进程过滤，只算本 app 的 WebView2）
+# 等前端稳定后采集内存
 Start-Sleep -Seconds 3
 $app = Get-Process -Id $proc.Id
+# 口径 A（与 P0 / 0.4 表一致，用于回归对比）：主进程 + 直接子进程（WebView2 browser）
 $wv = Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object { $_.ParentProcessId -eq $proc.Id }
 $wvWs = ($wv | Measure-Object WorkingSetSize -Sum).Sum
 if ($null -eq $wvWs) { $wvWs = 0 }
-Write-Bench "idle_memory_total_mb" ([double](($app.WorkingSet64 + $wvWs) / 1MB)) "MB" "app + webview2 子进程（按父进程过滤）"
+Write-Bench "idle_memory_total_mb" ([double](($app.WorkingSet64 + $wvWs) / 1MB)) "MB" "主进程 + WebView2 browser 进程（P0 口径，可回归对比）"
+# 口径 B（参考）：递归全部子孙进程，含 renderer/GPU/utility
+$ids = New-Object System.Collections.Generic.List[int]
+$ids.Add([int]$proc.Id)
+for ($i = 0; $i -lt $ids.Count; $i++) {
+    $children = Get-CimInstance Win32_Process -Filter "ParentProcessId=$($ids[$i])" -ErrorAction SilentlyContinue
+    foreach ($c in $children) { $ids.Add([int]$c.ProcessId) }
+}
+$sum = 0
+foreach ($procId in $ids) {
+    $p = Get-Process -Id $procId -ErrorAction SilentlyContinue
+    if ($p) { $sum += $p.WorkingSet64 }
+}
+Write-Bench "idle_memory_all_children_mb" ([double]($sum / 1MB)) "MB" "全部子孙进程（参考值，含 renderer/GPU）"
 
 Write-Host "`n前提: Defender=$defenderState, 电源=$powerState, OS=$osVer"
 Write-Host "输出: $OutDir\bench.jsonl"

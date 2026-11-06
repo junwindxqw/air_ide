@@ -1,5 +1,6 @@
 // 会话 / 设置 / 草稿 / 最近项目 IPC 封装（3.10）。
 import { invoke } from '@tauri-apps/api/core'
+import { winIpc } from '@/ipc/win'
 
 export interface OpenFileEntry {
   path: string
@@ -55,7 +56,15 @@ export const settings = {
 
 export const recentProjects = {
   list: () => invoke<string[]>('app_recent_projects'),
-  push: (path: string) => invoke('app_push_recent', { path }),
+  push: async (path: string) => {
+    await invoke('app_push_recent', { path })
+    // P5-6：最近项目同步到 Windows 跳转列表（失败不影响主流程）
+    try {
+      await winIpc.refreshJumpList()
+    } catch {
+      // 跳转列表不可用时静默
+    }
+  },
 }
 
 export const drafts = {

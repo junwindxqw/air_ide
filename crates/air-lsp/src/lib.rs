@@ -5,6 +5,7 @@
 //! 安全设计：spawn 处的程序名是编译期字面量（见 session.rs 的逐分支 match），
 //! 由操作系统按 PATH 解析；启动参数同样来自字面量。全程不经 shell。
 
+pub mod download;
 pub mod session;
 
 use std::io::{BufRead, Write};

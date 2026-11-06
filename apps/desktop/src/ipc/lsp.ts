@@ -1,6 +1,7 @@
 // LSP IPC 封装（2.5）：Transport（invoke + event）+ 按语言的会话管理。
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { withTaskProgress } from '@/ipc/task'
 
 export interface ServerInfo {
   language: string
@@ -34,6 +35,35 @@ export async function lspStop(language: string): Promise<void> {
 
 export async function lspReapIdle(idleMinutes?: number): Promise<void> {
   await invoke('lsp_reap_idle', { idleMinutes: idleMinutes ?? 10 })
+}
+
+/** 一键下载语言服务器完成事件（features/win 订阅后发系统通知，ipc 层不反向依赖 feature）。 */
+export const LSP_INSTALL_EVENT = 'air://lsp-install'
+
+export interface LspInstallEventDetail {
+  language: string
+  ok: boolean
+  error?: string
+}
+
+function emitInstallResult(detail: LspInstallEventDetail): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent<LspInstallEventDetail>(LSP_INSTALL_EVENT, { detail }))
+}
+
+/** 一键下载语言服务器（2.6 第三级，当前仅 PHPantom）。返回安装路径。 */
+export async function lspInstallServer(language: string): Promise<string> {
+  // P5-6：下载期间显示任务栏进度；完成/失败发事件，通知由 features/win 消费
+  return withTaskProgress('lsp-install', `安装 ${language} 语言服务器`, async () => {
+    try {
+      const path = await invoke<string>('lsp_install_server', { language })
+      emitInstallResult({ language, ok: true })
+      return path
+    } catch (e) {
+      emitInstallResult({ language, ok: false, error: e instanceof Error ? e.message : String(e) })
+      throw e
+    }
+  })
 }
 
 /** 订阅某语言的服务器消息（保序，不合并——协议要求顺序，3.5）。 */

@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useExplorerStore } from '@/features/explorer/store'
 import type { TreeEntry } from '@/ipc/fs'
 import { useEditorStore } from '@/features/editor/store'
+import { perfStart, perfEndOnPaint } from '@/app/perf'
 
 const HIDDEN_NAMES = new Set(['node_modules', '.git', 'dist', 'target', '.DS_Store'])
 
@@ -16,9 +17,11 @@ export function FileTree() {
   const loadDir = useExplorerStore((s) => s.loadDir)
   const children = useExplorerStore((s) => s.children)
 
-  // 根目录首次加载
+  // 根目录首次加载（计时含 IPC 列表 + 首次渲染，方案 5.3「首次展开」）
   useEffect(() => {
-    if (root) void loadDir(root, true)
+    if (!root) return
+    perfStart('air.tree_root')
+    void loadDir(root, true).then(() => perfEndOnPaint('air.tree_root'))
   }, [root, loadDir])
 
   if (!root) {

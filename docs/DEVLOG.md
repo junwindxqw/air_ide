@@ -270,3 +270,49 @@
 2. **模板文件着色**（3.6.1 TP/Blade 装饰器）：未做。
 3. **Problems 面板 / 大纲 / 面包屑接 LSP**：lsp-client 插件已挂（自带补全/hover/诊断/跳转），专用面板 UI 未做。
 4. **五语言真实场景验证**：需在装配了各语言服务器的环境跑（用户机器）。
+
+## Phase 5：收口（进行中，2026-11-05）
+
+### P5-1 一键下载语言服务器（结构完成，待补真值）
+
+`air-lsp::download` 已实现：HTTPS 下载（`ureq`）→ sha256 校验 → 解压到 `%APPDATA%\AirIDE\servers`，并接了 `lsp_install_server` 命令与管理面板按钮。
+**未完成点**：`expected_sha256` 与下载 URL 仍是占位值（`None` / 待定），校验分支存在但不会生效，也无法对真实 PHPantom 资产跑通。P5-1 只能算"结构就绪"。
+
+### P5-2 性能专项（本次交付）
+
+改动：
+
+| 文件 | 内容 |
+|---|---|
+| `src/app/perf.ts` | 统一 `performance.mark/measure` 埋点（release 同样生效，不写日志/不上报） |
+| `features/editor/store.ts` + `CodeEditor.tsx` | 大文件打开：读盘 / 读盘→首帧 两段计时 |
+| `explorer/FileTree.tsx` | 10k 工作区首次展开（IPC+首渲染） |
+| `git/ChangesPanel.tsx` | git status（首次）|
+| `git/openDiff.ts` + `git/SplitDiff.tsx` | diff 取数 / 取数→首帧；词级高亮配对由 O(n²) 改线性，>1000 行关闭词级高亮 |
+| `ipc/git.ts`、`air-git`、`src-tauri/commands.rs` | 新增 `git_diff_with_raw`：解析 + 原文一次 git 进程返回（原来两个） |
+| `air-git` `find_git` | git.exe 路径 `OnceLock` 缓存（原来每条命令都扫 PATH） |
+| `scripts/bench/p5-release.mjs` | release 采集：冷启动×3 中位数、内存双口径、树/status/搜索×3、diff、9.4MB 文件；自动记录 Defender/电源/OS，临时改写会话并还原 |
+| `scripts/bench/collect.ps1` | 内存恢复 P0 口径（主进程+WebView2 browser），另加全量子进程参考值 |
+
+### 实测（release，Windows 11 build 26300，Defender 实时防护开启，台式机）
+
+| 指标 | 目标 | 优化前 | 优化后 | 结论 |
+|---|---|---|---|---|
+| 冷启动（3 次中位数） | ≤800ms | 536 | 562 | 达标（首次含 Defender 扫描 974~1189ms） |
+| 空闲内存（无工作区，P0 口径） | ≤160MB | 149.7 | 149.6 | 达标 |
+| 空闲内存（10k 工作区，P0 口径） | ≤160MB | 154.1 | 153.7 | 达标 |
+| 10k 文件树首次展开 | ≤200ms | 79.5 | 43.9 | 达标 |
+| 10k git status（热刷新） | ≤250ms | 213.6 | 215.4 | 达标（首次 455~549ms，含 git.exe 首次扫描，计划不计入） |
+| 搜索首批（10k，9999 命中） | ≤300ms | 8.3 | 7.3 | 达标 |
+| 2000 行 diff 取数 | — | 400（2 次 git） | 193（1 次 git） | 进程数减半 |
+| 2000 行 diff 首帧 | ≤120ms | 383.1 | 214.3 | 未达标：其中 git 进程 188ms（同命令 CLI 实测 ~50ms，差价来自 Defender 对 unsigned GUI 子进程的扫描）；纯前端建视图约 26ms |
+| 9.4MB 文件读盘→首帧 | ≤150ms | 174.1 | 158.1 | 首次超 8ms（读盘 114.6ms 含首次扫描）；热读盘 85ms + 建视图 ≈129ms，达标 |
+
+参考值（非 0.4 口径）：全部子孙进程 WorkingSet 约 404MB（空载）/ 461MB（10k 工作区），含 WebView2 renderer/GPU。0.4 的 138MB 与 P0 记录均为「主进程 + WebView2 browser」，回归对比只看上表。
+
+### 已知限制
+
+1. Defender 实时防护对每个 `git.exe`/`git diff` 子进程加约 140ms，是 diff 与首次 status/大文件超标的唯一原因；关闭实时防护或在干净机器上需复测确认 `diff 首帧 ≤120ms`。
+2. 冷启动首次运行（新 exe 首次扫描）约 1.0~1.2s，取 3 次中位数；计划口径未明确是否排除首次扫描。
+3. 内存只覆盖 WorkingSet；未覆盖 LSP 子进程（本机未装语言服务器）。
+4. 搜索/树/status 均为冷盘首轮后热态数据，10 分钟长跑与低配机器未覆盖。

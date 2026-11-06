@@ -1,11 +1,9 @@
 // 编码 / 行尾切换（3.16）：必须区分「重新解释」（按新编码重读，内容可能变）
 // 与「转换并保存」（内容不变、字节变）。混淆这两者是乱码事故的常见来源。
-import { useState } from 'react'
 import { useTabsStore } from '@/features/editor/tabs'
 import { useEditorStore } from '@/features/editor/store'
-import { fsReadFile, fsWriteFile, type FileMeta } from '@/ipc/fs'
-
-type Mode = 'reinterpret' | 'convert'
+import { ENCODING_LABELS } from '@/features/editor/encoding'
+import { fsWriteFile, type FileMeta } from '@/ipc/fs'
 
 export function EncodingSwitch({
   open,
@@ -18,7 +16,6 @@ export function EncodingSwitch({
 }) {
   const activePath = useTabsStore((s) => s.activePath)
   const activeTab = useTabsStore((s) => s.tabs.find((t) => t.path === s.activePath))
-  const [mode, setMode] = useState<Mode>('reinterpret')
   const flash = useEditorStore((s) => s.flash)
 
   if (!open || !activeTab?.meta || !activePath) return null
@@ -28,29 +25,17 @@ export function EncodingSwitch({
   const apply = async (value: string) => {
     onClose()
     if (kind === 'encoding') {
-      if (mode === 'reinterpret') {
-        // 重新解释：放弃当前编辑，按新编码重读磁盘
-        const loaded = await fsReadFile(activePath)
-        if (loaded.meta.encoding !== value) {
-          flash('重新解释失败：该编码下文件无法解析')
-          return
-        }
-        const view = document.querySelector('.cm-content') as HTMLElement | null
-        void view
-        flash(`已按 ${value} 重新解释`)
-      } else {
-        // 转换并保存：内容不变，字节按新编码落盘
-        const { getEditorView } = await import('@/features/editor/store')
-        const v = getEditorView()
-        await fsWriteFile({
-          path: activePath,
-          text: v?.state.doc.toString() ?? '',
-          encoding: value,
-          eol: meta.eol === 'mixed' ? 'lf' : meta.eol,
-          hasBom: meta.hasBom,
-        })
-        flash(`已转换为 ${value} 并保存`)
-      }
+      // 当前只支持「转换并保存」（重新解释在 UI 中已明确禁用）
+      const { getEditorView } = await import('@/features/editor/store')
+      const v = getEditorView()
+      await fsWriteFile({
+        path: activePath,
+        text: v?.state.doc.toString() ?? '',
+        encoding: value,
+        eol: meta.eol === 'mixed' ? 'lf' : meta.eol,
+        hasBom: meta.hasBom,
+      })
+      flash(`已转换为 ${ENCODING_LABELS[value] ?? value} 并保存`)
     } else {
       // 行尾切换：只改当前文件与新建默认值（3.16），保存即生效
       const { getEditorView } = await import('@/features/editor/store')
@@ -90,24 +75,33 @@ export function EncodingSwitch({
           </button>
         </div>
         {kind === 'encoding' && (
-          <div className="enc-mode-row">
-            <label className="enc-mode">
-              <input
-                type="radio"
-                checked={mode === 'reinterpret'}
-                onChange={() => setMode('reinterpret')}
-              />
-              重新解释（按新编码重读，可能改变内容）
-            </label>
-            <label className="enc-mode">
-              <input
-                type="radio"
-                checked={mode === 'convert'}
-                onChange={() => setMode('convert')}
-              />
-              转换并保存（内容不变，字节改变）
-            </label>
-          </div>
+          <>
+            <div className="enc-mode-row">
+              <label
+                className="enc-mode"
+                style={{ opacity: 0.55 }}
+                title="读取文件时只做自动编码探测，无法按指定编码重读"
+              >
+                <input type="radio" checked={false} disabled />
+                重新解释（不可用：后端只自动探测编码）
+              </label>
+              <label className="enc-mode">
+                <input type="radio" checked={true} readOnly />
+                转换并保存（内容不变，字节改变）
+              </label>
+            </div>
+            <div
+              style={{
+                padding: '0 14px 10px',
+                fontSize: 11,
+                lineHeight: 1.5,
+                color: 'var(--fg-secondary)',
+              }}
+            >
+              重新解释需要按指定编码重读文件，当前后端只做自动探测，因此该模式不可用。
+              改变编码请用「转换并保存」；若要按指定编码重新读取，请先在外部工具中转码。
+            </div>
+          </>
         )}
         <div className="palette-list">
           {options.map((o) => (

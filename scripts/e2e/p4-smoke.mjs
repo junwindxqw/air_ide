@@ -1,11 +1,9 @@
 // P4 冒烟测试：服务器探测、ProjectProfile 识别、LSP 会话启动/消息/停止。
 const CDP_HTTP = 'http://127.0.0.1:9222'
 
-const results = []
-function check(name, ok, detail = '') {
-  results.push({ name, ok })
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
-}
+import { createReporter } from './lib/harness.mjs'
+
+const { check, skip, finish } = createReporter('p4-smoke', 'P4 冒烟')
 
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -127,18 +125,37 @@ const lspStartResult = await evaluate(cdp, `(async () => {
     const id = await window.__air.lspStart('go', ${JSON.stringify(plainRepo)})
     return { ok: true, id }
   } catch (e) {
-    return { ok: false, msg: String(e) }
+    const msg = (e && (e.message ?? e.code)) ? String(e.message ?? e.code) : String(e)
+    return { ok: false, msg }
   }
 })()`)
 check(
-  'LSP 启动未安装服务器：可读错误（不崩溃）',
-  lspStartResult.ok === true || (lspStartResult.msg ?? '').length > 0,
+  'LSP 启动（go）：成功返回数字会话 id，或给出非空可读错误',
+  lspStartResult.ok === true
+    ? typeof lspStartResult.id === 'number'
+    : (lspStartResult.msg ?? '').length > 0,
   JSON.stringify(lspStartResult),
 )
 
-// 6. idle 回收命令可用
-await evaluate(cdp, `window.__air.lspReap()`)
-check('LSP idle 回收命令可用', true)
+// 6. idle 回收：用扫描结果的 running 真值判定，不拿「命令不报错」当通过
+const scanAfterStart = await evaluate(cdp, `window.__air.lspScan()`)
+const goRunningAfterStart = scanAfterStart?.find((s) => s.language === 'go')?.running === true
+if (!lspStartResult.ok) {
+  skip(
+    'LSP idle 回收（reap(0) 后会话由 running 变 stopped）',
+    `go 服务器未安装或启动失败，无会话可回收：${lspStartResult.msg ?? '未知原因'}`,
+  )
+} else {
+  await evaluate(cdp, `window.__air.lspReap()`)
+  await sleep(500)
+  const scanAfterReap = await evaluate(cdp, `window.__air.lspScan()`)
+  const goRunningAfterReap = scanAfterReap?.find((s) => s.language === 'go')?.running === true
+  check(
+    'LSP idle 回收（reap(0) 后 go 会话由 running 变 stopped）',
+    goRunningAfterStart && !goRunningAfterReap,
+    `runningBefore=${goRunningAfterStart} runningAfter=${goRunningAfterReap}`,
+  )
+}
 
 // 7. 打开 PHP 文件：LSP 懒启动不阻塞编辑（降级路径）
 await evaluate(cdp, `window.__air.openWorkspace(${JSON.stringify(phpRepo)})`)
@@ -165,10 +182,5 @@ const panel = await evaluate(cdp, `(() => ({
 check('服务器管理面板渲染', panel.open && panel.rows === 7, JSON.stringify(panel))
 
 // ── 汇总 ──
-const failed = results.filter((r) => !r.ok)
-console.log(`\n=== P4 冒烟结果: ${results.length - failed.length}/${results.length} 通过 ===`)
-if (failed.length > 0) {
-  console.log('失败项:', failed.map((f) => f.name).join(' | '))
-  process.exitCode = 1
-}
+finish('P4 冒烟')
 cdp.close()

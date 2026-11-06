@@ -1,0 +1,380 @@
+/* 冲突解决浮层样式（新文件，避免改动共享 base.css） */
+
+.conflict-overlay {
+  position: fixed;
+  inset: 40px 20px 20px;
+  z-index: 59;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-editor);
+  color: var(--fg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.conflict-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-toolwindow);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.conflict-file {
+  font-weight: 600;
+  font-family: var(--editor-font);
+  max-width: 34%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conflict-meta,
+.conflict-count {
+  color: var(--fg-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.conflict-spacer {
+  flex: 1;
+}
+
+.conflict-bulk {
+  display: flex;
+  gap: 4px;
+}
+
+.conflict-btn {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--fg-primary);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.conflict-btn:not(:disabled):hover {
+  background: var(--bg-hover);
+}
+
+.conflict-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.conflict-btn.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.conflict-link {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.conflict-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.conflict-hunks {
+  flex: 1.3;
+  min-width: 0;
+  overflow: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-right: 1px solid var(--border);
+}
+
+.conflict-hunk {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  padding: 8px;
+  flex-shrink: 0;
+}
+
+.conflict-hunk.broken {
+  border-color: #FF6B68;
+}
+
+.conflict-hunk-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.conflict-hunk-title {
+  font-family: var(--editor-font);
+  color: var(--fg-secondary);
+}
+
+.conflict-badge-broken {
+  color: #FF6B68;
+  font-size: 11px;
+}
+
+.conflict-badge-chosen {
+  color: #6AAB73;
+  font-size: 11px;
+}
+
+.conflict-hunk-choices {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.conflict-choice {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--fg-secondary);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.conflict-choice:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.conflict-choice.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-selected);
+}
+
+.conflict-sides {
+  display: flex;
+  gap: 6px;
+}
+
+.conflict-side {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.conflict-side-title {
+  padding: 3px 6px;
+  font-size: 11px;
+  color: var(--fg-secondary);
+  background: var(--bg-toolwindow);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conflict-side.ours .conflict-side-title {
+  color: #2ACCB8;
+}
+
+.conflict-side.theirs .conflict-side-title {
+  color: #B5B6E3;
+}
+
+.conflict-side-text {
+  margin: 0;
+  padding: 6px;
+  max-height: 120px;
+  overflow: auto;
+  font-family: var(--editor-font);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.conflict-side.ours .conflict-side-text {
+  background: var(--diff-del-bg);
+}
+
+.conflict-side.theirs .conflict-side-text {
+  background: var(--diff-add-bg);
+}
+
+.conflict-empty {
+  color: var(--fg-secondary);
+}
+
+.conflict-both-preview {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--fg-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.conflict-problems {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: #FF6B68;
+  font-size: 11px;
+}
+
+.conflict-result {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  min-height: 0;
+}
+
+.conflict-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  color: var(--fg-secondary);
+  flex-shrink: 0;
+}
+
+.conflict-result-edit {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--fg-primary);
+  font-family: var(--editor-font);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 8px;
+  outline: none;
+  white-space: pre;
+  overflow: auto;
+}
+
+.conflict-result-edit:focus {
+  border-color: var(--accent);
+}
+
+.conflict-result-readonly {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.conflict-result-text {
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  padding: 8px;
+  font-family: var(--editor-font);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.conflict-limit-note {
+  flex-shrink: 0;
+  margin-top: 6px;
+  color: var(--fg-secondary);
+  font-size: 11px;
+}
+
+.conflict-problems-global,
+.conflict-error {
+  flex-shrink: 0;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid #FF6B68;
+  border-radius: 3px;
+  color: #FF6B68;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.conflict-block-reason {
+  flex-shrink: 0;
+  margin-top: 8px;
+  color: #CF8E6D;
+  font-size: 11px;
+}
+
+.conflict-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.conflict-manual-hint {
+  color: var(--fg-secondary);
+  font-size: 11px;
+}
+
+.conflict-message {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  color: var(--fg-secondary);
+}
+
+.conflict-message .conflict-error {
+  margin-top: 0;
+  max-width: 640px;
+}
+
+.conflict-message-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ChangesPanel 里的「已解决」标记与冲突入口（样式随本模块加载） */
+.changes-resolved {
+  margin-left: auto;
+  color: #6AAB73;
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.changes-resolve-btn {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--fg-primary);
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.changes-resolve-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}

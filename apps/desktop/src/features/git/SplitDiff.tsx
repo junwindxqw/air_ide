@@ -23,10 +23,14 @@ import type { FileDiff, Hunk, DiffLine } from '@/ipc/git'
 import { gitApplyHunk } from '@/ipc/git'
 import { wordDiff } from '@/features/git/wordDiff'
 import { useUiStore } from '@/app/uiStore'
+import { perfEndOnPaint } from '@/app/perf'
 
 type DisplayItem =
   | { kind: 'row'; row: DiffRow }
   | { kind: 'gap'; count: number; hunkIndex: number }
+
+/** 词级高亮的行数上限；超过只显示整行底色（P5-2 大 diff 性能保护）。 */
+const WORD_MARK_ROW_LIMIT = 1000
 
 /** 行内词级高亮：对配对的 (del, add) 行做 wordDiff，生成 mark decoration。 */
 function wordMarkField(
@@ -56,31 +60,45 @@ function buildWordMarks(
   const rowItems = items
     .map((d, i) => ({ d, lineNo: i + 1 }))
     .filter((x): x is { d: { kind: 'row'; row: DiffRow }; lineNo: number } => x.d.kind === 'row')
+  // 大 diff 关闭词级高亮：整行底色已够辨认，避免逐行 wordDiff 拖慢打开（P5-2）
+  if (rowItems.length > WORD_MARK_ROW_LIMIT) return builder.finish()
+  const otherChanged = (row: DiffRow): boolean => {
+    const other = side === 'left' ? row.right : row.left
+    return other != null && other.kind !== 'context'
+  }
+  // 线性预计算「同一 hunk 内最近的上一个 / 下一个对侧变更行」，
+  // 替代原来每行 slice+reverse 的 O(n²) 查找（P5-2）。
+  const prevPair: (DiffRow | undefined)[] = new Array(rowItems.length)
+  const nextPair: (DiffRow | undefined)[] = new Array(rowItems.length)
+  let hunk = -1
+  let lastOpposing = -1
+  for (let i = 0; i < rowItems.length; i++) {
+    const row = rowItems[i].d.row
+    if (row.hunkIndex !== hunk) {
+      hunk = row.hunkIndex
+      lastOpposing = -1
+    }
+    if (lastOpposing >= 0) prevPair[i] = rowItems[lastOpposing].d.row
+    if (otherChanged(row)) lastOpposing = i
+  }
+  hunk = -1
+  lastOpposing = -1
+  for (let i = rowItems.length - 1; i >= 0; i--) {
+    const row = rowItems[i].d.row
+    if (row.hunkIndex !== hunk) {
+      hunk = row.hunkIndex
+      lastOpposing = -1
+    }
+    if (lastOpposing >= 0) nextPair[i] = rowItems[lastOpposing].d.row
+    if (otherChanged(row)) lastOpposing = i
+  }
   rowItems.forEach(({ d, lineNo }, idx) => {
     if (lineNo > doc.lines) return
     const line = doc.line(lineNo)
     const row = d.row
     const mine = side === 'left' ? row.left : row.right
     if (!mine || mine.kind === 'context') return
-    // 找同一 hunk 内的配对行（前一个或后一个对侧变更行）
-    const pair = rowItems
-      .slice(0, idx)
-      .reverse()
-      .find(
-        (x) =>
-          x.d.row.hunkIndex === row.hunkIndex &&
-          (side === 'left' ? x.d.row.right : x.d.row.left)?.kind !== 'context' &&
-          (side === 'left' ? x.d.row.right : x.d.row.left) != null,
-      )
-      ?.d.row
-      ?? rowItems
-        .slice(idx + 1)
-        .find(
-          (x) =>
-            x.d.row.hunkIndex === row.hunkIndex &&
-            (side === 'left' ? x.d.row.right : x.d.row.left)?.kind !== 'context' &&
-            (side === 'left' ? x.d.row.right : x.d.row.left) != null,
-        )?.d.row
+    const pair = prevPair[idx] ?? nextPair[idx]
     if (!pair) return
     const other = side === 'left' ? pair.right : pair.left
     if (!other || other.kind === 'context') return
@@ -354,6 +372,8 @@ export function SplitDiff({
     const r2l = sync(right, left)
     left.scrollDOM.addEventListener('scroll', l2r)
     right.scrollDOM.addEventListener('scroll', r2l)
+    // 首帧后结束 diff 计时（折叠切换等重入时没有 start 标记，自动跳过）
+    perfEndOnPaint('air.diff_render')
 
     return () => {
       left.scrollDOM.removeEventListener('scroll', l2r)

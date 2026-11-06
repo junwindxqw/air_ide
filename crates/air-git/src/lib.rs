@@ -5,6 +5,7 @@ pub mod write;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 
 use air_core::{AirError, AirResult};
 use serde::Serialize;
@@ -24,8 +25,10 @@ pub fn find_repo_root(start: &Path) -> Option<PathBuf> {
 }
 
 /// 定位 git.exe（3.12.6）：PATH → Program Files → LocalAppData → 注册表 InstallPath。
+/// 结果缓存：PATH 逐项 exists() 探测在每条 git 命令前重复执行没有意义（P5-2）。
 pub fn find_git() -> Option<PathBuf> {
-    air_win::find_git()
+    static CACHE: OnceLock<Option<PathBuf>> = OnceLock::new();
+    CACHE.get_or_init(air_win::find_git).clone()
 }
 
 /// 构造 git 命令：绝对路径 + 参数数组，不经 shell（3.12.6）；
@@ -319,6 +322,17 @@ pub fn diff_file_with_opts(
     staged: bool,
     ignore_whitespace: bool,
 ) -> AirResult<FileDiff> {
+    Ok(diff_file_and_raw(workspace_root, path, staged, ignore_whitespace)?.0)
+}
+
+/// 一次 git 进程同时拿到「解析后的 FileDiff」与「原始 patch 文本」（P5-2）。
+/// 打开 diff 时原来要各跑一个 `git diff`（解析 + 原文），合并后少一半进程开销。
+pub fn diff_file_and_raw(
+    workspace_root: &Path,
+    path: &str,
+    staged: bool,
+    ignore_whitespace: bool,
+) -> AirResult<(FileDiff, String)> {
     let repo = find_repo_root(workspace_root)
         .ok_or_else(|| AirError::Git("非 Git 仓库".into()))?;
     let mut args = vec![
@@ -339,7 +353,7 @@ pub fn diff_file_with_opts(
     args.push(path.to_string());
     let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
     let out = run_git(&repo, &refs)?;
-    Ok(parse_diff(&out, path))
+    Ok((parse_diff(&out, path), out))
 }
 
 // ── log / blame（P2）──

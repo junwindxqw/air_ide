@@ -868,6 +868,11 @@ body {
   cursor: pointer;
 }
 
+.settings-row-col {
+  padding: 4px 0 8px;
+  border-bottom: 1px dashed var(--border);
+}
+
 .settings-number,
 .settings-select {
   background: var(--bg-editor);
@@ -894,6 +899,87 @@ body {
 .settings-saved {
   font-size: 11px;
   color: #6AAB73;
+}
+
+/* ── P5-7：设置页更新面板 ── */
+
+.updater-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  padding: 2px 0 4px;
+}
+
+.updater-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.updater-muted {
+  color: var(--fg-secondary);
+}
+
+.updater-status {
+  color: var(--fg-secondary);
+}
+
+.updater-status.ok {
+  color: #6AAB73;
+}
+
+.updater-card {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  background: var(--bg-editor);
+}
+
+.updater-card.error {
+  border-color: #c75450;
+}
+
+.updater-card-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.updater-notes {
+  color: var(--fg-secondary);
+  max-height: 96px;
+  overflow: auto;
+  white-space: pre-wrap;
+  margin-bottom: 6px;
+}
+
+.updater-hint,
+.updater-raw {
+  color: var(--fg-secondary);
+  margin-bottom: 4px;
+}
+
+.updater-raw {
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.updater-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.updater-progress {
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: var(--bg-editor);
+  overflow: hidden;
+}
+
+.updater-progress-fill {
+  height: 100%;
+  background: var(--accent);
 }
 
 /* ── P3：提交面板 / 分支菜单 / 命令条 / hunk 操作 ── */
@@ -1564,4 +1650,226 @@ body {
   border-top: 1px solid var(--border);
   padding-top: 8px;
   line-height: 1.6;
+}
+
+.server-install-msg {
+  margin-top: 6px;
+  color: var(--accent);
+}
+
+/* ── P5：错误边界 ── */
+
+.error-boundary {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  background: var(--bg-panel);
+}
+
+.error-boundary h1 {
+  font-size: 18px;
+  color: #FF6B68;
+}
+
+.error-boundary p {
+  font-size: 13px;
+  color: var(--fg-secondary);
+}
+
+.error-boundary-detail {
+  max-width: 600px;
+  max-height: 200px;
+  overflow: auto;
+  font-family: var(--editor-font);
+  font-size: 11px;
+  background: var(--bg-editor);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 12px;
+  white-space: pre-wrap;
+}
+
+.error-boundary-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.error-boundary-hint {
+  font-size: 11px;
+  color: var(--fg-secondary);
+}
+
+/* ── P5：欢迎页 ── */
+
+.welcome-page {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-panel);
+}
+
+.welcome-card {
+  width: 480px;
+  max-width: 92vw;
+  background: var(--bg-toolwindow);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.welcome-title {
+  font-size: 24px;
+  margin: 0 0 4px;
+}
+
+.welcome-sub {
+  font-size: 12px;
+  color: var(--fg-secondary);
+  margin: 0 0 24px;
+}
+
+.welcome-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.welcome-open {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.welcome-hint {
+  font-size: 11px;
+  color: var(--fg-secondary);
+}
+
+.welcome-recent,
+.welcome-servers {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-bottom: 12px;
+}
+
+.welcome-section-title {
+  font-size: 11px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+}
+
+.welcome-recent-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--fg-primary);
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.welcome-recent-item:hover {
+  background: var(--bg-hover);
+}
+
+.welcome-footer {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+/* ── P5：Defender 提示 ── */
+
+.defender-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  background: #4A3C1E;
+  border-bottom: 1px solid #6B5A2E;
+  font-size: 11px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.defender-cmd {
+  font-family: var(--editor-font);
+  font-size: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.defender-result {
+  color: #6AAB73;
+}
+
+/* ── P5-6：集成提示与通知降级浮层 ── */
+
+.defender-result.error {
+  color: #e06c75;
+}
+
+.settings-hint {
+  font-size: 11px;
+  color: var(--fg-secondary);
+  margin: 2px 0 0;
+  line-height: 1.4;
+}
+
+.notify-host {
+  position: fixed;
+  right: 12px;
+  bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 2000;
+  max-width: 360px;
+}
+
+.notify-item {
+  position: relative;
+  padding: 8px 26px 8px 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  font-size: 11px;
+}
+
+.notify-item.warning {
+  border-left-color: #d9a640;
+}
+
+.notify-item.error {
+  border-left-color: #e06c75;
+}
+
+.notify-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.notify-body {
+  color: var(--fg-secondary);
+  word-break: break-word;
+}
+
+.notify-item .diff-close {
+  position: absolute;
+  top: 2px;
+  right: 2px;
 }

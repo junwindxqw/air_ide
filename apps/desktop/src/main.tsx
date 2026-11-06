@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/app/App'
+import { ErrorBoundary } from '@/app/ErrorBoundary'
 import { useEditorStore, getEditorView } from '@/features/editor/store'
 import { useTabsStore } from '@/features/editor/tabs'
 import { useOverlayStore } from '@/app/overlayStore'
@@ -12,7 +13,9 @@ import '@/styles/base.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>,
 )
 
@@ -129,6 +132,12 @@ if (import.meta.env.DEV) {
       const { projectProfile } = await import('@/ipc/lsp')
       return projectProfile(root)
     },
+    /** 性能埋点结果（方案 5.3）：脚本经 CDP 读取 */
+    perf: () =>
+      performance.getEntriesByType('measure').map((e) => ({
+        name: e.name,
+        ms: Math.round(e.duration * 10) / 10,
+      })),
     openServerPanel: () => useOverlayStore.getState().openServerPanel(),
     debugExplorer: () => {
       const s = useExplorerStore.getState()

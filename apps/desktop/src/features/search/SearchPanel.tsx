@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { nextQueryId, searchQuery, searchCancel, type SearchMatch } from '@/ipc/search'
 import { useUiStore } from '@/app/uiStore'
 import { useEditorStore } from '@/features/editor/store'
+import { perfStart, perfEnd } from '@/app/perf'
 
 interface FileGroup {
   path: string
@@ -49,8 +50,15 @@ export function SearchPanel({ open, onClose }: { open: boolean; onClose: () => v
     setSearching(true)
     setGroups([])
     setTotal(0)
+    // 首批结果计时（方案 5.3；不含输入防抖）
+    perfStart('air.search_first_batch')
+    let firstBatch = true
     try {
       const count = await searchQuery(qid, root, { pattern, regex: useRegex, caseSensitive, wholeWord }, (batch) => {
+        if (firstBatch) {
+          firstBatch = false
+          perfEnd('air.search_first_batch')
+        }
         setGroups((prev) => mergeBatch(prev, batch))
       })
       if (queryIdRef.current === qid) setTotal(count)

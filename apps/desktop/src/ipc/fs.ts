@@ -1,5 +1,6 @@
 // 文件系统 IPC 封装 + 大 payload 信封解码（3.5）。
 import { invoke } from '@tauri-apps/api/core'
+import { withTaskProgress } from '@/ipc/task'
 
 // [[NEXT]]
 
@@ -29,8 +30,12 @@ export function parseEnvelope(buf: ArrayBuffer): LoadedFile {
 }
 
 export async function fsReadFile(path: string): Promise<LoadedFile> {
-  const buf = await invoke<ArrayBuffer>('fs_read_file', { path })
-  return parseEnvelope(buf)
+  // P5-6：大文件读取在任务栏显示进度（后端按 500ms 阈值抑制短任务闪烁）
+  const name = path.split(/[\\/]/).pop() ?? path
+  return withTaskProgress('fs-read', `读取 ${name}`, async () => {
+    const buf = await invoke<ArrayBuffer>('fs_read_file', { path })
+    return parseEnvelope(buf)
+  })
 }
 
 export interface FsWriteArgs {

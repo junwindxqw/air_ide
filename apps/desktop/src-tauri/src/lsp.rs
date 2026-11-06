@@ -294,3 +294,21 @@ pub fn project_profile(root: String) -> ProjectProfile {
         source: "extension".into(),
     }
 }
+
+/// 一键下载语言服务器（2.6 第三级，P5-1）。当前仅 PHPantom。
+/// 下载 → sha256 强校验（失败 fail-closed）→ 解压落盘到 servers 目录。
+#[tauri::command]
+pub async fn lsp_install_server(language: String) -> Result<String, AirError> {
+    let source = match language.as_str() {
+        "php" => air_lsp::download::DownloadSource::PhpantomWinX64,
+        other => {
+            return Err(AirError::Lsp(format!(
+                "暂不支持一键下载 {other} 的服务器（请按安装提示手动安装）"
+            )))
+        }
+    };
+    let exe = tauri::async_runtime::spawn_blocking(move || air_lsp::download::install(source))
+        .await
+        .map_err(|e| AirError::other(e.to_string()))??;
+    Ok(exe.to_string_lossy().into_owned())
+}

@@ -1,11 +1,9 @@
 // P2 冒烟测试：双栏 diff / 词级高亮 / 折叠 / 导航 / 已读 / 忽略空白 / log 视图。
 const CDP_HTTP = 'http://127.0.0.1:9222'
 
-const results = []
-function check(name, ok, detail = '') {
-  results.push({ name, ok })
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
-}
+import { createReporter } from './lib/harness.mjs'
+
+const { check, skip, finish } = createReporter('p2-smoke', 'P2 冒烟')
 
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -72,7 +70,7 @@ writeFileSync(
   join(REPO, 'src', 'OrderService.php'),
   '<?php\nclass OrderService {\n  public function pay($price) {\n    return $price;\n  }\n}\n',
 )
-execSync(`git init -q && git config user.email t@t.com && git config user.name t && git add -A && git commit -qm init`, { cwd: REPO, shell: 'bash' })
+execSync(`git init -q && git config user.email t@t.com && git config user.name t && git add -A && git commit -qm init`, { cwd: REPO })
 
 // 制造多处变更（词级 + 行级 + 纯空白）
 writeFileSync(
@@ -152,7 +150,7 @@ writeFileSync(
   join(REPO, 'src', 'OrderService.php'),
   '<?php\nclass OrderService {\n  public function payNow($price) {\n    return $price * 100;\n  }\n\n  public function refund() {}\n}\n',
 )
-execSync('git add -A && git commit -qm changed', { cwd: REPO, shell: 'bash' })
+execSync('git add -A && git commit -qm changed', { cwd: REPO })
 writeFileSync(
   join(REPO, 'src', 'OrderService.php'),
   '<?php\nclass OrderService {\n  public function payNow($price) {   \n    return $price * 100;   \n  }\n\n  public function refund() {}\n}\n',
@@ -201,11 +199,6 @@ const closed = await evaluate(cdp, `!document.querySelector('.split-diff')`)
 check('Esc 关闭 diff', closed)
 
 // ── 汇总 ──
-const failed = results.filter((r) => !r.ok)
-console.log(`\n=== P2 冒烟结果: ${results.length - failed.length}/${results.length} 通过 ===`)
-if (failed.length > 0) {
-  console.log('失败项:', failed.map((f) => f.name).join(' | '))
-  process.exitCode = 1
-}
+finish('P2 冒烟')
 cdp.close()
 

@@ -4,12 +4,17 @@ import { useEffect, useMemo, useCallback, useState } from 'react'
 import { gitStatus, gitStageFile, gitUnstageFile, type RepoStatus } from '@/ipc/git'
 import { useUiStore } from '@/app/uiStore'
 import { useDiffOverlay } from '@/features/git/openDiff'
+import { perfStart, perfEnd } from '@/app/perf'
+import { ConflictResolver } from './conflict/ConflictResolver'
+import { useConflictStore } from './conflict/store'
 
 export function ChangesPanel() {
   const root = useUiStore((s) => s.workspaceRoot)
   const [status, setStatus] = useState<RepoStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const openDiff = useDiffOverlay((s) => s.open)
+  const openConflict = useConflictStore((s) => s.open)
+  const resolvedPaths = useConflictStore((s) => s.resolvedPaths)
 
   const refresh = useCallback(async () => {
     if (!root) {
@@ -17,7 +22,9 @@ export function ChangesPanel() {
       return
     }
     try {
+      perfStart('air.git_status')
       const s = await gitStatus(root)
+      perfEnd('air.git_status')
       setStatus(s)
       setError(null)
     } catch (e) {
@@ -68,6 +75,7 @@ export function ChangesPanel() {
   }
 
   return (
+    <>
     <div className="changes-panel">
       <div className="changes-header">
         <span className="changes-branch" title={status.upstream ?? undefined}>
@@ -93,12 +101,19 @@ export function ChangesPanel() {
             {entries.map((e) => {
               const staged = group === '已暂存'
               const conflicted = group === '冲突'
+              const resolved = resolvedPaths.has(e.path)
               return (
                 <div
                   key={`${group}-${e.path}`}
                   className="changes-row"
-                  onDoubleClick={() => void openDiff(e.path)}
-                  title={`${e.path}（双击查看 diff）`}
+                  onDoubleClick={() =>
+                    conflicted ? void openConflict(e.path) : void openDiff(e.path)
+                  }
+                  title={
+                    conflicted
+                      ? `${e.path}（双击解决冲突）`
+                      : `${e.path}（双击查看 diff）`
+                  }
                 >
                   {!conflicted && (
                     <input
@@ -114,6 +129,19 @@ export function ChangesPanel() {
                     {e.kind[0].toUpperCase()}
                   </span>
                   <span className="changes-path">{e.path}</span>
+                  {resolved && <span className="changes-resolved">✓ 已解决</span>}
+                  {conflicted && !resolved && (
+                    <button
+                      className="changes-resolve-btn"
+                      onClick={(ev) => {
+                        ev.stopPropagation()
+                        void openConflict(e.path)
+                      }}
+                      title="打开冲突解决界面"
+                    >
+                      解决
+                    </button>
+                  )}
                 </div>
               )
             })}
@@ -121,5 +149,7 @@ export function ChangesPanel() {
         )
       })}
     </div>
+    <ConflictResolver />
+    </>
   )
 }

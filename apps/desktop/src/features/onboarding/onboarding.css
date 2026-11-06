@@ -1,0 +1,136 @@
+/* 首次启动引导（P5-4）：独立样式，不改动 base.css。颜色全部走 tokens 变量。 */
+
+.onb-card {
+  max-height: calc(100% - 48px);
+  overflow-y: auto;
+}
+
+.onb-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.onb-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.onb-dot.on {
+  background: var(--accent);
+}
+
+.onb-step-label {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fg-secondary);
+}
+
+.onb-title {
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+
+.onb-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-secondary);
+  margin: 0 0 12px;
+}
+
+.onb-shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.onb-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.onb-key {
+  font-family: var(--editor-font);
+  font-size: 11px;
+  color: var(--fg-primary);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.onb-lsp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.onb-lsp-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.onb-lsp-name {
+  font-size: 12px;
+  color: var(--fg-primary);
+}
+
+.onb-lsp-hint {
+  font-size: 11px;
+  color: var(--fg-secondary);
+  line-height: 1.5;
+}
+
+.onb-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.onb-notice {
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 6px 8px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg-primary);
+}
+
+.onb-notice-ok {
+  background: var(--diff-add-bg);
+}
+
+.onb-notice-error {
+  background: var(--diff-del-bg);
+}
+
+.onb-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.onb-spacer {
+  flex: 1;
+}

@@ -37,8 +37,11 @@ pub fn servers_dir() -> Option<PathBuf> {
     std::env::var_os("LOCALAPPDATA").map(|p| PathBuf::from(p).join("AirIDE").join("servers"))
 }
 
-/// 把内置 servers 目录前置到当前进程 PATH（应用启动时调用一次；
+/// 把内置 servers 目录及其各子目录前置到当前进程 PATH（应用启动时调用一次；
 /// 之后所有子进程继承，下载的服务器可被按名解析）。
+///
+/// 一键下载的服务器装在 `servers/<name>/` 里，而 [`Session::start`] 按程序名
+/// spawn，所以必须把子目录也加入 PATH，只加 `servers` 根目录会找不到可执行文件。
 pub fn register_servers_on_path() {
     let Some(servers) = servers_dir() else {
         return;
@@ -46,10 +49,24 @@ pub fn register_servers_on_path() {
     if !servers.is_dir() {
         return;
     }
-    let base = std::env::var("PATH").unwrap_or_default();
-    let joined = format!("{};{}", servers.display(), base);
-    // 安全：仅修改本进程环境，值来自受控目录
-    std::env::set_var("PATH", joined);
+    let mut paths: Vec<PathBuf> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&servers) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                paths.push(path);
+            }
+        }
+    }
+    // 根目录也保留（兼容直接放在 servers 根下的布局）
+    paths.push(servers);
+    if let Some(existing) = std::env::var_os("PATH") {
+        paths.extend(std::env::split_paths(&existing));
+    }
+    if let Ok(joined) = std::env::join_paths(paths) {
+        // 安全：仅修改本进程环境，值来自受控目录
+        std::env::set_var("PATH", joined);
+    }
 }
 
 /// 单个语言服务器会话。

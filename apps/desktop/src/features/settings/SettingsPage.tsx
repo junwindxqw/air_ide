@@ -1,6 +1,9 @@
 // 设置页（3.14 清单）：编辑器/外观/Git/系统 四组，含导入导出与 schemaVersion。
 import { useEffect, useState } from 'react'
 import { settings as settingsIpc, type Settings } from '@/ipc/session'
+import { useSettingsStore } from '@/features/settings/settingsRuntime'
+import { UpdaterPanel } from '@/features/settings/UpdaterPanel'
+import { WindowsIntegration } from '@/features/settings/WindowsIntegration'
 
 export function SettingsPage({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [draft, setDraft] = useState<Settings | null>(null)
@@ -30,10 +33,9 @@ export function SettingsPage({ open, onClose }: { open: boolean; onClose: () => 
 
   const save = async () => {
     if (!draft) return
-    await settingsIpc.save(draft)
+    // 落盘 + 立即更新运行时 store（主题/字号/行号/失焦保存等消费者随之生效）
+    await useSettingsStore.getState().save(draft)
     setSaved(true)
-    // 立即生效：编辑器字号/行高走 CSS 变量
-    document.documentElement.style.setProperty('--editor-font-size', `${draft.editor.fontSize}px`)
   }
 
   const exportSettings = () => {
@@ -168,6 +170,15 @@ export function SettingsPage({ open, onClose }: { open: boolean; onClose: () => 
             />
           </Section>
 
+          <Section title="更新">
+            <ToggleRow
+              label="启动时静默检查（不自动安装）"
+              value={draft.system.autoUpdate}
+              onChange={(v) => update('system', { ...draft.system, autoUpdate: v })}
+            />
+            <UpdaterPanel />
+          </Section>
+
           <Section title="系统">
             <ToggleRow
               label="单实例"
@@ -175,15 +186,11 @@ export function SettingsPage({ open, onClose }: { open: boolean; onClose: () => 
               onChange={(v) => update('system', { ...draft.system, singleInstance: v })}
             />
             <ToggleRow
-              label="自动更新"
-              value={draft.system.autoUpdate}
-              onChange={(v) => update('system', { ...draft.system, autoUpdate: v })}
-            />
-            <ToggleRow
               label="Defender 排除提示"
               value={draft.system.defenderHint}
               onChange={(v) => update('system', { ...draft.system, defenderHint: v })}
             />
+            <WindowsIntegration />
           </Section>
         </div>
         <div className="settings-footer">

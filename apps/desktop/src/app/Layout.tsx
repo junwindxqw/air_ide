@@ -17,8 +17,11 @@ import { SearchPanel } from '@/features/search/SearchPanel'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { GlobalDiff } from '@/features/git/GlobalDiff'
 import { ServerPanel } from '@/features/lsp/ServerPanel'
+import { WelcomePage, useShowWelcome } from '@/features/settings/WelcomePage'
+import { DefenderHint } from '@/features/settings/DefenderHint'
 import { ExternalChangeBanner } from '@/features/editor/ExternalChangeBanner'
 import { StatusBar } from '@/app/StatusBar'
+import { NotificationHost } from '@/features/win/NotificationHost'
 import { useUiStore } from '@/app/uiStore'
 import { useOverlayStore } from '@/app/overlayStore'
 
@@ -30,6 +33,8 @@ export function Layout() {
   const registerFocusEditor = useUiStore((s) => s.registerFocusEditor)
   const workspaceRoot = useUiStore((s) => s.workspaceRoot)
   const [gitTab, setGitTab] = useState<'changes' | 'log'>('changes')
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false)
+  const showWelcome = useShowWelcome()
   const setLastToolWindow = (side: 'left' | 'right') =>
     useUiStore.setState({ lastToolWindow: side })
 
@@ -59,7 +64,11 @@ export function Layout() {
 
   return (
     <div className="app-root">
-      <div className="main-area">
+      {showWelcome && !workspaceRoot && !welcomeDismissed ? (
+        <WelcomePage onDismiss={() => setWelcomeDismissed(true)} />
+      ) : (
+          <div className="main-area">
+        <DefenderHint />
         <PanelGroup direction="horizontal">
           <Panel
             ref={leftRef}
@@ -125,7 +134,8 @@ export function Layout() {
             </div>
           </Panel>
         </PanelGroup>
-      </div>
+          </div>
+      )}
       <StatusBar />
       <FileTreeMenu />
       <CommandPalette
@@ -153,6 +163,7 @@ export function Layout() {
         open={useOverlayStore((s) => s.serverPanelOpen)}
         onClose={() => useOverlayStore.getState().closeAll()}
       />
+      <NotificationHost />
     </div>
   )
 }

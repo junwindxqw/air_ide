@@ -2,11 +2,9 @@
 // 前置：app 以 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222 启动。
 const CDP_HTTP = 'http://127.0.0.1:9222'
 
-const results = []
-function check(name, ok, detail = '') {
-  results.push({ name, ok })
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
-}
+import { createReporter } from './lib/harness.mjs'
+
+const { check, skip, finish } = createReporter('p0-smoke', 'P0 冒烟')
 
 // [[NEXT]]
 
@@ -71,7 +69,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const cdp = await connectToPage()
 check('CDP 连接', true)
 
-// 1. 布局骨架
+// 0. 欢迎页（P5-4）：无工作区/首次运行时显示；先关掉再测布局。
+//    首次运行会叠加引导（只有「跳过引导/下一步」），不能只找「继续」按钮。
+const skipGuide = await evaluate(cdp, `(() => {
+  if (!document.querySelector('.welcome-page')) return 'no-welcome'
+  const find = (t) => [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === t)
+  const skip = find('跳过引导')
+  if (skip) { skip.click(); return 'guide-skipped' }
+  return 'guide-absent'
+})()`)
+if (skipGuide === 'guide-skipped') await sleep(300)
+const dismissed = await evaluate(cdp, `(() => {
+  const btn = [...document.querySelectorAll('button')].find((b) => b.textContent?.includes('继续（不打开项目）'))
+  if (btn) { btn.click(); return true }
+  return !document.querySelector('.welcome-page')
+})()`)
+if (dismissed) await sleep(500)
+
+// 1. 布局骨架存在
 const layout = await evaluate(cdp, `(() => ({
   title: document.title,
   hasRoot: !!document.querySelector('#root'),
@@ -114,7 +129,7 @@ await evaluate(cdp, `window.__air.open(${JSON.stringify(gbkPath)})`)
 await sleep(700)
 const gbkState = await evaluate(
   cdp,
-  `({ doc: window.__air.doc(), meta: window.__air.meta() })`,
+  `({ doc: window.__air.doc(), meta: window.__air.activeMeta() })`,
 )
 check(
   'GBK 打开并正确显示',
@@ -137,7 +152,7 @@ check(
 // 4. BOM：检测 + 保存保留
 await evaluate(cdp, `window.__air.open(${JSON.stringify(bomPath)})`)
 await sleep(600)
-const bomMeta = await evaluate(cdp, `window.__air.meta()`)
+const bomMeta = await evaluate(cdp, `window.__air.activeMeta()`)
 check('BOM 检测', bomMeta?.hasBom === true, `hasBom=${bomMeta?.hasBom}`)
 await evaluate(cdp, `window.__air.save()`)
 await sleep(500)
@@ -153,7 +168,7 @@ await evaluate(cdp, `window.__air.open(${JSON.stringify(crlfPath)})`)
 await sleep(600)
 const crlfState = await evaluate(
   cdp,
-  `({ doc: window.__air.doc(), meta: window.__air.meta() })`,
+  `({ doc: window.__air.doc(), meta: window.__air.activeMeta() })`,
 )
 check(
   'CRLF 检测与归一',
@@ -178,11 +193,6 @@ const bigDocLen = await evaluate(cdp, `window.__air.doc()?.length ?? 0`)
 check('10MB 打开（≤600ms 可编辑）', bigMs < 600, `${bigMs.toFixed(0)}ms docLen=${bigDocLen}`)
 
 // 7. 汇总 + 释放
-const failed = results.filter((r) => !r.ok)
-console.log(`\n=== P0 冒烟结果: ${results.length - failed.length}/${results.length} 通过 ===`)
-if (failed.length > 0) {
-  console.log('失败项:', failed.map((f) => f.name).join(' | '))
-  process.exitCode = 1
-}
+finish('P0 冒烟')
 cdp.close()
 

@@ -133,6 +133,25 @@ pub fn init_logging() {
     }
 }
 
+/// 启动前置校验失败：弹原生消息框后退出（窗口还没建，只能用 MessageBox）。
+pub fn show_fatal_and_exit(msg: &str) {
+    #[cfg(windows)]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
+        use windows::core::HSTRING;
+        let title = HSTRING::from("Air IDE 无法启动");
+        let text = HSTRING::from(msg);
+        unsafe {
+            let _ = MessageBoxW(None, &text, &title, MB_OK | MB_ICONERROR);
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        eprintln!("{msg}");
+    }
+    std::process::exit(1);
+}
+
 pub fn valid_path(arg: &str) -> Option<String> {
     let p = std::path::Path::new(arg);
     if p.exists() {
@@ -397,6 +416,62 @@ pub fn app_report_benchmark(metric: String, ms: f64, detail: Option<String>) -> 
     Ok(())
 }
 
+/// 前端错误边界日志（P5-3）：React 崩溃信息落盘（不含文件内容）。
+#[tauri::command]
+pub fn app_log_frontend(message: String) -> Result<(), AirError> {
+    let dir = std::env::var_os("LOCALAPPDATA")
+        .map(|p| PathBuf::from(p).join("AirIDE").join("logs"))
+        .ok_or_else(|| AirError::other("LOCALAPPDATA 未设置"))?;
+    std::fs::create_dir_all(&dir)?;
+    use std::io::Write;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("frontend-error.log"))?;
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    writeln!(f, "[{ts}] {message}")?;
+    Ok(())
+}
+
+/// Windows 集成开关（P5-6，D15）：文件夹右键 / 文件关联候选 / 卸载信息。
+/// 只写 HKCU（免管理员）；enable=false 时清理。
+#[tauri::command]
+pub fn app_register_shell(enable: bool) -> Result<(), AirError> {
+    let exe = std::env::current_exe().map_err(|e| AirError::other(format!("获取 exe 路径失败: {e}")))?;
+    air_win::register_shell_entries(enable, &exe)
+}
+
+/// 加入 Defender 排除项（3.12.5）：用户确认后由前端调用执行。
+/// 经 PowerShell + 参数数组，不经 shell 拼接。
+#[tauri::command]
+pub async fn app_add_defender_exclusion(path: String) -> Result<(), AirError> {
+    tauri::async_runtime::spawn_blocking(move || -> AirResult<()> {
+        let output = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "Add-MpPreference",
+                "-ExclusionPath",
+                &path,
+            ])
+            .output()
+            .map_err(|e| AirError::other(format!("执行 PowerShell 失败: {e}")))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(AirError::other(format!(
+                "加入排除项失败（可能需要管理员权限）: {}",
+                stderr.trim()
+            )));
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| AirError::other(e.to_string()))?
+}
+
 // ── P1：Git / 搜索 / 会话 / 设置 ──────────────────────────────
 
 #[tauri::command]
@@ -418,6 +493,31 @@ pub async fn git_diff_file(
     let iw = ignore_whitespace.unwrap_or(false);
     tauri::async_runtime::spawn_blocking(move || {
         air_git::diff_file_with_opts(&root, &path, staged, iw)
+    })
+    .await
+    .map_err(|e| AirError::other(e.to_string()))?
+}
+
+/// 解析结果 + 原始 patch 一次返回（P5-2）：打开 diff 只跑一个 git 进程。
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffWithRaw {
+    diff: air_git::FileDiff,
+    raw: String,
+}
+
+#[tauri::command]
+pub async fn git_diff_with_raw(
+    repo: String,
+    path: String,
+    staged: bool,
+    ignore_whitespace: Option<bool>,
+) -> Result<DiffWithRaw, AirError> {
+    let root = PathBuf::from(repo);
+    let iw = ignore_whitespace.unwrap_or(false);
+    tauri::async_runtime::spawn_blocking(move || {
+        air_git::diff_file_and_raw(&root, &path, staged, iw)
+            .map(|(diff, raw)| DiffWithRaw { diff, raw })
     })
     .await
     .map_err(|e| AirError::other(e.to_string()))?

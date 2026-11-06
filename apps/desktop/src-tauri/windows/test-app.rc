@@ -1,0 +1,3 @@
+// 仅用于测试二进制（cargo test）：嵌入与主程序一致的 comctl32 v6 清单。
+// 由 build.rs 通过 embed-resource 的 compile_for_tests 链接到测试 exe。
+1 24 "windows/test-app.manifest"

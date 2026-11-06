@@ -4,11 +4,9 @@ const { execSync } = await import('node:child_process')
 const { mkdirSync, writeFileSync, existsSync, rmSync, readdirSync, statSync } = await import('node:fs')
 const { join } = await import('node:path')
 
-const results = []
-function check(name, ok, detail = '') {
-  results.push({ name, ok })
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
-}
+import { createReporter } from './lib/harness.mjs'
+
+const { check, skip, finish } = createReporter('p0-windows', 'P0 Windows 适配')
 
 // [[NEXT]]
 
@@ -103,7 +101,7 @@ await evaluate(cdp, `window.__air.open(${JSON.stringify(deepFile)})`)
 await sleep(700)
 const deepState = await evaluate(
   cdp,
-  `({ doc: window.__air.doc(), meta: window.__air.meta() })`,
+  `({ doc: window.__air.doc(), meta: window.__air.activeMeta() })`,
 )
 check(
   '3.12.1 长路径文件打开',
@@ -111,21 +109,40 @@ check(
   `docLen=${deepState.doc?.length} pathLen=${deepState.meta?.path?.length}`,
 )
 
-// ── 3.12.2 高 DPI：devicePixelRatio 与 CM6 行高整数化 ──
+// ── 3.12.2 高 DPI：dpr 有效 + CM6 行高整数化（可自动判定）──
 const dpi = await evaluate(
   cdp,
-  `({ dpr: window.devicePixelRatio, lineHeight: getComputedStyle(document.querySelector('.cm-line') ?? document.body).lineHeight })`,
+  `(() => {
+    const line = document.querySelector('.cm-line')
+    const lh = line ? getComputedStyle(line).lineHeight : ''
+    return { dpr: window.devicePixelRatio, lineHeight: lh, hasCmLine: !!line }
+  })()`,
 )
+const lineHeightPx = parseFloat(dpi.lineHeight)
 check(
-  '3.12.2 DPI 感知（PerMonitorV2）',
-  typeof dpi.dpr === 'number' && dpi.dpr > 0,
-  `dpr=${dpi.dpr}`,
+  '3.12.2 DPI/行高：dpr 有效且编辑器行高为整数 px',
+  Number.isFinite(dpi.dpr) && dpi.dpr >= 1 && dpi.hasCmLine && dpi.lineHeight.endsWith('px') && Number.isInteger(lineHeightPx) && lineHeightPx > 0,
+  `dpr=${dpi.dpr} lineHeight=${JSON.stringify(dpi.lineHeight)}`,
+)
+skip(
+  '3.12.2 DPI 视觉确认（125%/150% 缩放下文字与图标不模糊）',
+  '需人工目视；WebView2 JS 只能读到 dpr 与行高，无法判定栅格化清晰度',
 )
 
-// ── 3.12.3 暗色标题栏：DWM 属性设置结果（Rust 侧日志 + 无报错即降级成功）──
-// 标题栏是否暗色无法从 JS 读；验证 app 未崩溃且 WebView 可正常渲染即可。
-const titleOk = await evaluate(cdp, `document.title === 'Air IDE'`)
-check('3.12.3 应用运行（标题栏设置无崩溃）', titleOk)
+// ── 3.12.3 暗色标题栏：原生 DWM 属性无法从 JS 读取，改为可判定的运行态 + 人工项 ──
+const runtime = await evaluate(cdp, `({
+  title: document.title,
+  errorBoundary: !!document.querySelector('.error-boundary'),
+})`)
+check(
+  '3.12.3 应用运行正常（标题为 Air IDE 且无渲染错误边界）',
+  runtime.title === 'Air IDE' && !runtime.errorBoundary,
+  JSON.stringify(runtime),
+)
+skip(
+  '3.12.3 暗色标题栏（DWM 属性生效）',
+  '标题栏颜色属于原生窗口，WebView2 JS 无法读取；需人工目视确认',
+)
 
 // ── 3.12.4 文件监听：外部写入 → fs://changed 事件（P0 只验证写入抑制表不误报）──
 const watchDir = 'D:/bench/p0-win/watch'
@@ -178,11 +195,6 @@ const after = execSync('tasklist /FI "IMAGENAME eq air-ide.exe" /NH', { encoding
 check('3.10 单实例锁（二次启动不新开进程）', after === before, `before=${before} after=${after}`)
 
 // ── 汇总 ──
-const failed = results.filter((r) => !r.ok)
-console.log(`\n=== P0 Windows 适配结果: ${results.length - failed.length}/${results.length} 通过 ===`)
-if (failed.length > 0) {
-  console.log('失败项:', failed.map((f) => f.name).join(' | '))
-  process.exitCode = 1
-}
+finish('P0 Windows 适配')
 cdp.close()
 

@@ -2,11 +2,9 @@
 // 前置：app 以 --remote-debugging-port=9222 启动，vite dev server 在 5173。
 const CDP_HTTP = 'http://127.0.0.1:9222'
 
-const results = []
-function check(name, ok, detail = '') {
-  results.push({ name, ok })
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
-}
+import { createReporter } from './lib/harness.mjs'
+
+const { check, skip, finish } = createReporter('p1-smoke', 'P1 冒烟')
 
 // [[NEXT]]
 
@@ -79,7 +77,7 @@ mkdirSync(join(REPO, 'node_modules', 'junk'), { recursive: true })
 writeFileSync(join(REPO, 'node_modules', 'junk', 'x.js'), 'junk')
 
 // git init + 首次提交（最小 diff 需要仓库基线）
-execSync(`git init -q && git config user.email t@t.com && git config user.name t && git add -A && git commit -qm init`, { cwd: REPO, shell: 'bash' })
+execSync(`git init -q && git config user.email t@t.com && git config user.name t && git add -A && git commit -qm init`, { cwd: REPO })
 
 const cdp = await connectToPage()
 check('CDP 连接', true)
@@ -203,11 +201,6 @@ check(
 )
 
 // 9. 汇总
-const failed = results.filter((r) => !r.ok)
-console.log(`\n=== P1 冒烟结果: ${results.length - failed.length}/${results.length} 通过 ===`)
-if (failed.length > 0) {
-  console.log('失败项:', failed.map((f) => f.name).join(' | '))
-  process.exitCode = 1
-}
+finish('P1 冒烟')
 cdp.close()
 

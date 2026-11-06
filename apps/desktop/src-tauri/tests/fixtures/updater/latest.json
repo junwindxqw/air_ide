@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "notes": "updater 集成测试清单（本地静态服务器）",
+  "pub_date": "2026-11-05T00:00:00Z",
+  "platforms": {
+    "windows-x86_64-nsis": {
+      "url": "http://127.0.0.1:{{PORT}}/artifact.bin",
+      "signature": "{{SIGNATURE}}"
+    },
+    "windows-x86_64": {
+      "url": "http://127.0.0.1:{{PORT}}/artifact.bin",
+      "signature": "{{SIGNATURE}}"
+    }
+  }
+}

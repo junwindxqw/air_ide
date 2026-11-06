@@ -1,5 +1,6 @@
 // Git IPC 封装（3.5 契约）。
 import { invoke } from '@tauri-apps/api/core'
+import { withTaskProgress } from '@/ipc/task'
 
 export type StatusKind =
   | 'modified'
@@ -64,6 +65,21 @@ export async function gitDiffFile(
   ignoreWhitespace = false,
 ): Promise<FileDiff> {
   return invoke<FileDiff>('git_diff_file', {
+    repo,
+    path,
+    staged,
+    ignoreWhitespace,
+  })
+}
+
+/** 解析结果 + 原始 patch 一次取回（P5-2：打开 diff 只跑一个 git 进程）。 */
+export async function gitDiffWithRaw(
+  repo: string,
+  path: string,
+  staged: boolean,
+  ignoreWhitespace = false,
+): Promise<{ diff: FileDiff; raw: string }> {
+  return invoke<{ diff: FileDiff; raw: string }>('git_diff_with_raw', {
     repo,
     path,
     staged,
@@ -158,7 +174,9 @@ export async function gitCommit(
   amend = false,
   signoff = false,
 ): Promise<string> {
-  return invoke<string>('git_commit', { repo, message, amend, signoff })
+  return withTaskProgress('git-commit', '提交更改', () =>
+    invoke<string>('git_commit', { repo, message, amend, signoff }),
+  )
 }
 
 export async function gitUndoCommit(repo: string): Promise<void> {
@@ -177,7 +195,9 @@ export async function gitBranches(repo: string): Promise<BranchInfo[]> {
 }
 
 export async function gitCheckout(repo: string, name: string): Promise<void> {
-  await invoke('git_checkout', { repo, name })
+  await withTaskProgress('git-checkout', `切换分支 ${name}`, () =>
+    invoke('git_checkout', { repo, name }),
+  )
 }
 
 export async function gitBranchCreate(repo: string, name: string): Promise<void> {
@@ -197,7 +217,9 @@ export async function gitRemoteOp(
   op: RemoteOp,
   rebase = false,
 ): Promise<number> {
-  return invoke<number>('git_remote_op', { opId, repo, op, rebase })
+  return withTaskProgress(`git-${op}`, `Git ${op}`, () =>
+    invoke<number>('git_remote_op', { opId, repo, op, rebase }),
+  )
 }
 
 export async function gitCancelOp(opId: string): Promise<void> {
@@ -206,7 +228,9 @@ export async function gitCancelOp(opId: string): Promise<void> {
 
 /** Git 命令条（D2）。 */
 export async function gitRun(opId: string, repo: string, args: string[]): Promise<number> {
-  return invoke<number>('git_run', { opId, repo, args })
+  return withTaskProgress('git-run', '执行 Git 命令', () =>
+    invoke<number>('git_run', { opId, repo, args }),
+  )
 }
 
 export async function gitRunCancel(opId: string): Promise<void> {
