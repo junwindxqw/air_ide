@@ -57,5 +57,11 @@ jobs:
       - name: Rust tests
         run: cargo test --workspace
 
+      # 严格门槛：clippy 告警即失败。
+      # fmt 未纳入门禁：仓库尚未统一 rustfmt（当前 23/28 个 .rs 文件不符合默认格式），
+      # 格式化将作为单独提交后续引入，避免纯格式噪声 diff 混入功能审阅。
+      - name: Rust clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
       - name: Build frontend
         run: pnpm --filter desktop exec vite build
