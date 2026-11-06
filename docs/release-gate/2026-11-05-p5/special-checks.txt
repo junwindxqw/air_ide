@@ -1,0 +1,38 @@
+# 专项复核原始输出（release exe + 隔离数据目录 bench-out/e2e/tmp-crash-gate）
+
+## A. 崩溃标记 / 单实例（第一遍脚本，日志判定受编码影响，需按 UTF-8 复判）
+S1 coldStartMs=398 visible=True pid=38948
+S1 markerExists=True
+S1 processCount=1
+S1 secondExited=True processCountAfterSecond=1
+S1 firstWindowStillVisible=True
+S1 closeResult=closed exited=True markerAfterClose=False
+S1 logCleanExit=False logCrashWarn=False   <- 脚本以 ANSI 读取 UTF-8 日志导致误判
+S2 coldStartMs=59 visible=True pid=37552
+S2 markerExists=True crashPromptLog=False
+S2b markerAfterKill=True processGone=True
+S3 coldStartMs=71 visible=True pid=22956
+S3 crashPromptLog=False                     <- 同上，编码误判
+cleanup processCount=0
+
+## A'. 日志 UTF-8 复判（同一份 logs/air-ide.log）
+2026-11-05T10:42:21.294952Z  INFO air_ide::log: Air IDE 启动 version="0.1.0"
+2026-11-05T10:42:23.418681Z  INFO air_ide::log: Air IDE 启动 version="0.1.0"
+2026-11-05T10:42:29.516143Z  INFO air_ide::crash: Air IDE 正常退出
+2026-11-05T10:42:30.727217Z  INFO air_ide::log: Air IDE 启动 version="0.1.0"
+2026-11-05T10:42:33.828235Z  INFO air_ide::log: Air IDE 启动 version="0.1.0"
+2026-11-05T10:42:34.183723Z  WARN air_ide::crash: 上次运行异常退出 crash_id=-
+HAS_CLEAN=True HAS_CRASH=True
+
+说明：正常关窗后重启无「上次运行异常退出」；强杀后重启出现该 WARN。
+
+## B. 崩溃弹窗窗口级验证（重启后枚举该进程可见窗口）
+WINDOW_COUNT=3
+TITLES_B64=QWlyIElERSDkuIrmrKHmnKrmraPluLjpgIDlh7ogfCBBaXIgSURFIHwgY29tLmFpcmlkZS5hcHAtc2l3
+TITLE_LENGTHS=15,7,18
+
+base64 解码 = `Air IDE 上次未正常退出 | Air IDE | com.airide.app-siw...`，即崩溃提示窗口真实存在。
+
+## C. 清理
+tmpRemaining=0
+airIdeProcesses=0
