@@ -1,0 +1,67 @@
+name: Build Windows installer
+
+# 仅用于在 CI（windows-latest）产出可手动测试的 NSIS 安装包。
+# 本机构建内存不足，因此走 GitHub Actions；不产出 updater 签名产物（CI 无签名私钥）。
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: build-windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Windows / NSIS installer
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm --filter desktop build
+
+      # CI 没有 updater 签名私钥：用配置文件覆盖关掉签名产物，只出 NSIS 安装包。
+      - name: Write CI tauri config override
+        shell: pwsh
+        run: |
+          Set-Content -Path apps/desktop/src-tauri/tauri.ci.conf.json -NoNewline -Encoding utf8 -Value '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: Build Tauri app (NSIS)
+        run: pnpm --filter desktop exec tauri build --config src-tauri/tauri.ci.conf.json
+
+      - name: List NSIS output
+        shell: pwsh
+        run: |
+          Get-ChildItem target/release/bundle/nsis -Recurse | Select-Object FullName, Length
+
+      - name: Upload NSIS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: air-ide-windows-nsis
+          path: target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 7
