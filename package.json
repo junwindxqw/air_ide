@@ -11,7 +11,8 @@
     "build": "pnpm --filter desktop build:tauri",
     "check": "pnpm --filter desktop check",
     "e2e:smoke": "node scripts/e2e/run-all.mjs --level smoke",
-    "e2e:regression": "node scripts/e2e/run-all.mjs --level regression"
+    "e2e:regression": "node scripts/e2e/run-all.mjs --level regression",
+    "test:release": "node --test scripts/release/asset-names.test.mjs"
   },
   "devDependencies": {
     "@codemirror/lsp-client": "^6.3.0",

@@ -50,6 +50,10 @@ jobs:
       - name: TypeScript / ESLint / Vitest
         run: pnpm --filter desktop check
 
+      # 发版脚本的资产名规则（空格→点）必须与 GitHub 实际资产名一致，防止清单 URL 404。
+      - name: Release script unit tests
+        run: pnpm test:release
+
       - name: Rust tests
         run: cargo test --workspace
 

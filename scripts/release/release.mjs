@@ -20,6 +20,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { releaseAssetUrl, toReleaseAssetName } from './asset-names.mjs'
+
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const isWin = process.platform === 'win32'
 const desktopDir = path.join(repo, 'apps', 'desktop')
@@ -204,77 +206,144 @@ const baseUrl =
     return endpoint ? endpoint.replace(/\/latest\.json$/, '') : `https://example.invalid/v${version}`
   })()
 
-const assetUrl = (file) => `${baseUrl.replace(/\/$/, '')}/${encodeURIComponent(path.basename(file))}`
+// 参数是「上传后的资产名」，不是本地路径；空格已按 GitHub 规则转成点，避免 %20 形式的 404。
+const assetUrl = (name) => releaseAssetUrl(baseUrl, name)
 
 const notes =
   (args['notes-file'] && fs.readFileSync(path.resolve(args['notes-file']), 'utf8').trim()) ||
   (typeof args.notes === 'string' ? args.notes : `Air IDE v${version}`)
 
 const pubDate = new Date().toISOString()
-const latest = {
-  version,
-  notes,
-  pub_date: pubDate,
-  platforms: {
-    // 安装版（NSIS）走的条目
-    'windows-x86_64-nsis': {
-      url: assetUrl(installer),
-      signature: installerSig,
+
+/** 依据「上传后的实际资产名」生成两份清单；名字与 GitHub 上的资产必须逐字一致。 */
+function buildManifests(names) {
+  const installerUrl = assetUrl(names.installer)
+  const latest = {
+    version,
+    notes,
+    pub_date: pubDate,
+    platforms: {
+      // 安装版（NSIS）走的条目
+      'windows-x86_64-nsis': {
+        url: installerUrl,
+        signature: installerSig,
+      },
+      // 非 NSIS 安装类型的兜底条目：同样指向安装包，避免便携版误拿 zip
+      'windows-x86_64': {
+        url: installerUrl,
+        signature: installerSig,
+      },
     },
-    // 非 NSIS 安装类型的兜底条目：同样指向安装包，避免便携版误拿 zip
-    'windows-x86_64': {
-      url: assetUrl(installer),
-      signature: installerSig,
-    },
-  },
+  }
+
+  const releaseManifest = {
+    version,
+    pub_date: pubDate,
+    notes,
+    base_url: baseUrl,
+    assets: [
+      {
+        type: 'nsis',
+        name: names.installer,
+        url: installerUrl,
+        size: fs.statSync(installer).size,
+        sha256: sha256(installer),
+        signature: installerSig,
+      },
+      ...(portable && names.portable
+        ? [
+            {
+              type: 'portable',
+              name: names.portable,
+              url: assetUrl(names.portable),
+              size: fs.statSync(portable).size,
+              sha256: sha256(portable),
+              signature: portableSig,
+            },
+          ]
+        : []),
+    ],
+  }
+
+  return { latest, releaseManifest }
 }
 
-const releaseManifest = {
-  version,
-  pub_date: pubDate,
-  notes,
-  base_url: baseUrl,
-  assets: [
-    {
-      type: 'nsis',
-      name: path.basename(installer),
-      url: assetUrl(installer),
-      size: fs.statSync(installer).size,
-      sha256: sha256(installer),
-      signature: installerSig,
-    },
-    ...(portable
-      ? [
-          {
-            type: 'portable',
-            name: path.basename(portable),
-            url: assetUrl(portable),
-            size: fs.statSync(portable).size,
-            sha256: sha256(portable),
-            signature: portableSig,
-          },
-        ]
-      : []),
-  ],
+// GitHub 会把资产名里的空格替换成点；清单从一开始就用这个实际名字。
+let assetNames = {
+  installer: toReleaseAssetName(path.basename(installer)),
+  portable: portable ? toReleaseAssetName(path.basename(portable)) : null,
 }
+let manifests = buildManifests(assetNames)
 
 const outDir = path.resolve(args.out ?? path.join(targetDir, 'release', 'updater', `v${version}`))
-fs.mkdirSync(outDir, { recursive: true })
-fs.writeFileSync(path.join(outDir, 'latest.json'), `${JSON.stringify(latest, null, 2)}\n`, 'utf8')
-fs.writeFileSync(
-  path.join(outDir, 'release-manifest.json'),
-  `${JSON.stringify(releaseManifest, null, 2)}\n`,
-  'utf8',
-)
+const latestPath = path.join(outDir, 'latest.json')
+const manifestPath = path.join(outDir, 'release-manifest.json')
+
+function writeManifests() {
+  fs.mkdirSync(outDir, { recursive: true })
+  fs.writeFileSync(latestPath, `${JSON.stringify(manifests.latest, null, 2)}\n`, 'utf8')
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifests.releaseManifest, null, 2)}\n`, 'utf8')
+}
+writeManifests()
 
 console.log(`\n[release] 完成，上传资产：`)
-for (const asset of releaseManifest.assets) {
+for (const asset of manifests.releaseManifest.assets) {
   console.log(`  - ${asset.name}  (${asset.size} bytes, sha256 ${asset.sha256})`)
   console.log(`    ${asset.url}`)
 }
-console.log(`  - latest.json → ${assetUrl(path.join(outDir, 'latest.json'))}`)
-console.log(`  - release-manifest.json → ${assetUrl(path.join(outDir, 'release-manifest.json'))}`)
+console.log(`  - latest.json → ${assetUrl('latest.json')}`)
+console.log(`  - release-manifest.json → ${assetUrl('release-manifest.json')}`)
 console.log(`\n本地清单：${outDir}`)
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** 发布后匿名校验：状态码必须是 200/206，长度必须与本地一致（CDN 返回旧内容会在这里暴露）。 */
+async function verifyReachable(label, url, expectedSize) {
+  let detail = ''
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const res = await fetch(url, {
+        headers: { Range: 'bytes=0-0', 'Cache-Control': 'no-cache' },
+        redirect: 'follow',
+      })
+      const range = res.headers.get('content-range')
+      const total = range ? Number(range.split('/').pop()) : Number(res.headers.get('content-length'))
+      if ((res.status === 200 || res.status === 206) && total === expectedSize) {
+        console.log(`[release] 自检通过 ${label}：HTTP ${res.status}，${total} bytes`)
+        return
+      }
+      detail = `HTTP ${res.status}，Content-Length=${Number.isFinite(total) ? total : '未知'}，期望 ${expectedSize}`
+    } catch (error) {
+      detail = `请求失败：${error.message}`
+    }
+    if (attempt < 3) await sleep(5000)
+  }
+  fail(`发布后自检失败：${label}\n  URL: ${url}\n  ${detail}\n  已重试 3 次。`)
+}
+
+async function verifyRelease() {
+  const targets = [
+    ['latest.json', assetUrl('latest.json'), fs.statSync(latestPath).size],
+    ...manifests.releaseManifest.assets.map((asset) => [asset.name, asset.url, asset.size]),
+  ]
+  for (const [label, url, size] of targets) await verifyReachable(label, url, size)
+}
+
+function releaseAssets(tag) {
+  const result = spawnSync('gh', ['release', 'view', tag, '--json', 'assets'], {
+    cwd: repo,
+    encoding: 'utf8',
+  })
+  if (result.status !== 0) fail(`无法查询 ${tag} 的资产列表：${result.stderr ?? ''}`)
+  return JSON.parse(result.stdout).assets
+}
+
+function uploadedName(assets, file, pattern, tag) {
+  const size = fs.statSync(file).size
+  const hit = assets.find((asset) => asset.size === size && pattern.test(asset.name))
+  if (!hit) fail(`未找到 ${tag} 上匹配 ${pattern} 的资产（本地 ${size} bytes），无法确认实际资产名`)
+  return hit.name
+}
 
 // 5) 可选：发布到 GitHub Releases
 if (args.publish) {
@@ -290,17 +359,34 @@ if (args.publish) {
     tag,
     installer,
     `${installer}.sig`,
-    path.join(outDir, 'latest.json'),
-    path.join(outDir, 'release-manifest.json'),
+    latestPath,
+    manifestPath,
     ...(portable ? [portable, `${portable}.sig`] : []),
     '--clobber',
   ])
   console.log(`[release] 已上传到 GitHub Release ${tag}`)
+
+  // 上传后回查实际资产名：若与本地文件名规则不同，按线上名字重写清单再上传。
+  const assets = releaseAssets(tag)
+  const actual = {
+    installer: uploadedName(assets, installer, /_x64-setup\.exe$/, tag),
+    portable: portable ? uploadedName(assets, portable, /_x64-portable\.zip$/, tag) : null,
+  }
+  if (actual.installer !== assetNames.installer || actual.portable !== assetNames.portable) {
+    console.log(`[release] 实际资产名与本地不同，改用：${actual.installer}`)
+    assetNames = actual
+    manifests = buildManifests(assetNames)
+    writeManifests()
+    run('gh', ['release', 'upload', tag, latestPath, manifestPath, '--clobber'])
+  }
+
+  await verifyRelease()
+  console.log(`[release] 发布后自检全部通过（${tag}）`)
 }
 
 console.log('\n[release] 校验清单与签名：')
 console.log(
   `  node scripts/release/verify-updater.mjs --release-manifest ${JSON.stringify(
-    path.join(outDir, 'latest.json'),
+    latestPath,
   )} --artifact ${JSON.stringify(installer)} --sig ${JSON.stringify(`${installer}.sig`)}`,
 )
