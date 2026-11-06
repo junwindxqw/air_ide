@@ -316,3 +316,53 @@
 2. 冷启动首次运行（新 exe 首次扫描）约 1.0~1.2s，取 3 次中位数；计划口径未明确是否排除首次扫描。
 3. 内存只覆盖 WorkingSet；未覆盖 LSP 子进程（本机未装语言服务器）。
 4. 搜索/树/status 均为冷盘首轮后热态数据，10 分钟长跑与低配机器未覆盖。
+
+## 0.2.0 发布记录（2026-11-06）
+
+### 版本与来源
+
+| 项 | 值 |
+|---|---|
+| 版本 | 0.2.0（`package.json` / `tauri.conf.json`） |
+| Git tag | `v0.2.0` → `aa22956f1fe8f261bd2f9208d4102929a3648fb6` |
+| Release | <https://github.com/junwindxqw/air_ide/releases/tag/v0.2.0>（2026-11-06T04:41:05Z 发布，仓库 public） |
+| 发布方式 | 本机 `node scripts/release/release.mjs --publish`（`tauri build` + 签名 + 生成清单 + `gh release` 上传） |
+
+0.2.0 相比 0.1.0 的主要能力：Git 冲突解决界面、设置启动 hydration（主题/字号/行高/行号等落地）、
+大文件降级（2MB 关 LSP/折叠、10MB 只读）、外部修改「对比差异」接入 Git Diff、
+Windows 集成（系统集成开关/跳转列表/任务栏进度/通知/Defender 提示）、应用内更新（静默检查/下载/验签/被动安装）。
+首次启动引导与用户文档同步收口。
+
+### 发布资产（GitHub 实际文件名，空格已转点）
+
+| 资产 | 大小 |
+|---|---|
+| `Air.IDE_0.2.0_x64-setup.exe` | 3,807,644 B（约 3.63 MB） |
+| `Air.IDE_0.2.0_x64-setup.exe.sig` | 436 B |
+| `Air.IDE_0.2.0_x64-portable.zip` | 5,014,081 B（约 4.78 MB） |
+| `Air.IDE_0.2.0_x64-portable.zip.sig` | 440 B |
+| `latest.json` | 1,314 B |
+| `release-manifest.json` | 1,712 B |
+
+### CI 状态
+
+- tag 提交 `aa22956` 的 `CI`（`.github/workflows/ci.yml`）为 **success**：
+  TypeScript/ESLint/Vitest（13 个 spec 文件、102 个用例）、发布脚本单测、`cargo test --workspace`、
+  `cargo clippy -D warnings`、`vite build`。
+- 发布后 main 最新一次 CI（`2e5258c`，2026-11-06T05:59:13Z）为 **success**。
+- CI **不产出安装包**，也不自动发版；签名私钥不在仓库内，发布为本地手动流程。
+  同日早些时候 `6bd9e8c` 曾有一次 failure，修复后 `aa22956` / `2e5258c` 均通过。
+
+### 已知风险
+
+1. **无 Authenticode 证书**：安装包未签名，SmartScreen 会提示未知发布者；企业策略可能拦截。
+   Minisign 仅保护更新链路，不提供安装包发布者身份。
+2. **更新私钥空口令**：私钥位于 `%USERPROFILE%\.air-ide\air-ide-updater.key`，当前未设置口令；
+   文件泄露即可伪造任意已安装客户端信任的更新。需限制访问并离线备份。
+3. **便携版不自动更新**：只能手动下载新 zip；其数据目录仍与安装版共用
+   `%APPDATA%\AirIDE` / `%LOCALAPPDATA%\AirIDE`。
+4. **依赖 GitHub 网络**：`latest.json` 走 `releases/latest/download`，国内网络可能需代理。
+5. **仅 x64**：无 ARM64 构建；updater 清单也只声明 Windows x64。
+6. **发布未 CI 化**：需要手工注入签名密钥与上传资产，存在人为漏传/错传风险。
+7. **文档/模板待修**：`scripts/install/make-portable.ps1` 生成的「便携版说明.txt」仍写
+   `%APPDATA%\com.airide.app`，实际代码使用 `%APPDATA%\AirIDE`（本次仅改文档，未改脚本）。

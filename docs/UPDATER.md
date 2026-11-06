@@ -92,22 +92,26 @@ node scripts/release/release.mjs --skip-build
 
 ### 2.1 GitHub Releases 资产
 
+> GitHub 会把资产名中的空格转成点：本地产物 `Air IDE_<版本>_x64-setup.exe`，
+> Release 上实际是 `Air.IDE_<版本>_x64-setup.exe`。清单里的 URL/name 必须使用点号版本，
+> 否则 `releases/download/<tag>/<name>` 会 404（0.2.0 已按此规则发布）。
+
 | 资产 | 说明 |
 | --- | --- |
 | `latest.json` | updater 清单（必须是 Release 的资产，endpoint 指向 `releases/latest/download/latest.json`） |
-| `Air IDE_<version>_x64-setup.exe` | NSIS 安装包 |
-| `Air IDE_<version>_x64-setup.exe.sig` | 安装包签名 |
-| `Air IDE_<version>_x64-portable.zip` | 便携版（手动分发，不走应用内更新） |
-| `Air IDE_<version>_x64-portable.zip.sig` | 便携版签名（供人工核对） |
+| `Air.IDE_<版本>_x64-setup.exe` | NSIS 安装包 |
+| `Air.IDE_<版本>_x64-setup.exe.sig` | 安装包签名 |
+| `Air.IDE_<版本>_x64-portable.zip` | 便携版（手动分发，不走应用内更新） |
+| `Air.IDE_<版本>_x64-portable.zip.sig` | 便携版签名（供人工核对） |
 | `release-manifest.json` | 非 updater 清单：列出安装包与便携 zip 的 URL / 大小 / SHA-256 / 签名 |
 
-`latest.json` 结构：
+`latest.json` 结构（示例，`pub_date` 为 ISO 8601 时间）：
 
 ```json
 {
   "version": "0.2.0",
   "notes": "更新说明",
-  "pub_date": "2026-11-05T00:00:00.000Z",
+  "pub_date": "<ISO 8601 时间>",
   "platforms": {
     "windows-x86_64-nsis": { "url": "<安装包 URL>", "signature": "<.sig 内容>" },
     "windows-x86_64": { "url": "<安装包 URL>", "signature": "<.sig 内容>" }
@@ -177,6 +181,62 @@ pnpm --filter desktop test
 1. **未做商业代码签名**：安装包首次运行可能触发 SmartScreen；接受 D6 策略。
 2. **私钥丢失**：已发布版本将无法继续接收更新，只能让用户手动重装；私钥需离线备份。
 3. **GitHub 可用性**：`latest.json` 依赖 GitHub Releases 与 `releases/latest/download` 语义；国内网络可能需代理。
-4. **便携版**：没有应用内更新，只能手动下载新 zip；`windows-x86_64` 兜底条目指向 NSIS 安装包，会把便携版转成安装版。
+4. **便携版**：没有应用内更新，只能手动下载新 zip；`windows-x86_64` 兜底条目指向 NSIS 安装包，
+   会把便携版转成安装版；其数据目录仍与安装版共用 `%APPDATA%\AirIDE` / `%LOCALAPPDATA%\AirIDE`。
 5. **回滚**：updater 不支持降级；如需回滚，需要发布一个版本号更高的「回滚版本」。
-6. **CI 未接入**：目前发布脚本在本机执行，GitHub Actions 工作流尚未落地（需要配置签名 Secret 与 Windows runner）。
+6. **发布未 CI 化**：`.github/workflows/ci.yml` 只做检查/测试（含发布脚本单测），
+   不构建安装包、不注入签名密钥、不自动上传 Release；发版仍在本机执行 `release.mjs --publish`。
+
+## 6. 发布与密钥管理（0.2.0 现状）
+
+> 本节记录 0.2.0 实际发布方式、密钥保管与风险；操作步骤见第 2 节。
+
+### 6.1 私钥位置与口令
+
+| 项 | 现状 |
+|---|---|
+| 私钥文件 | `%USERPROFILE%\.air-ide\air-ide-updater.key`（仓库外） |
+| 公钥 | 写入 `apps/desktop/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey` |
+| 口令 | **当前为空口令**（未设置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`） |
+| 备份 | 需离线备份；丢失后已发布版本无法再接收更新，只能让用户手动重装 |
+
+空口令风险：拿到私钥文件的人可直接为任意版本签名，已安装客户端会因为签名“有效”而接受
+恶意更新（`requireSignedVersion` 只校验版本一致性，不校验发布者身份）。建议：
+
+- 用 NTFS ACL 限制私钥文件仅发布者账号可读，避免放入网盘/同步目录/仓库；
+- 发布机器与日常开发机隔离；
+- 条件允许时用 `tauri signer generate` 时设置口令，并通过
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 注入，不要把口令写进脚本或仓库；
+- 轮换后按第 1.3 节保留一次旧私钥签名的过渡版本。
+
+### 6.2 密钥轮换注意事项
+
+1. 生成新密钥对并更新 `tauri.conf.json` 的 `pubkey`；
+2. 已安装的旧客户端只信任旧公钥，**无法验证**用新私钥签的新清单；
+3. 必须先用旧私钥签一个「过渡版本」，该版本内嵌新公钥；用户完成这次更新后才会信任新密钥；
+4. 过渡版本发布并确认覆盖率之前，不要删除旧私钥；
+5. `latest.json` 必须由当前客户端仍信任的私钥签名——过渡期内用旧私钥签，
+   过渡期结束后改用新私钥。
+
+### 6.3 缺少 Authenticode 的影响
+
+- 安装包与便携包均无代码签名证书，Windows 无法验证发布者身份，首次运行触发 SmartScreen
+  「未知发布者」；企业 AppLocker/WDAC 策略可能直接拦截。
+- Minisign 签名只覆盖「应用内更新」链路（清单 + 安装包），不改变初次安装的信任状态；
+  手动下载安装包的用户仍需依赖 Release 页与 `release-manifest.json` 中的 SHA-256 自行核对。
+- 后续若采购证书，签名密钥（Authenticode）与更新密钥（Minisign）需分别管理；
+  更换 Authenticode 证书不影响已安装客户端的更新信任链。
+
+### 6.4 0.2.0 发布资产与校验
+
+| 资产 | 大小（字节） |
+|---|---|
+| `Air.IDE_0.2.0_x64-setup.exe` | 3,807,644 |
+| `Air.IDE_0.2.0_x64-setup.exe.sig` | 436 |
+| `Air.IDE_0.2.0_x64-portable.zip` | 5,014,081 |
+| `Air.IDE_0.2.0_x64-portable.zip.sig` | 440 |
+| `latest.json` | 1,314 |
+| `release-manifest.json` | 1,712 |
+
+Release：<https://github.com/junwindxqw/air_ide/releases/tag/v0.2.0>。
+发布后可用 `scripts/release/verify-updater.mjs` 与 Release 页的 SHA-256 复核。
