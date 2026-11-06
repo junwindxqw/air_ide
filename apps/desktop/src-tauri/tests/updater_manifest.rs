@@ -20,6 +20,8 @@ use tauri_plugin_updater::UpdaterExt;
 mod common;
 
 const FIXTURE_DIR: &str = "tests/fixtures/updater";
+/// fixture 签名绑定的「永远有更新」版本：签名是静态的，不能随每次发版重签。
+const NEWER_VERSION: &str = "9999.0.0";
 
 struct ServerState {
     manifest_status: u16,
@@ -189,32 +191,37 @@ fn updater_manifest_scenarios() {
     let sig_text = sig.clone();
     let decoded = common::decode_base64_text(&sig_text).expect("解码签名文本");
     assert!(
-        decoded.contains("version:0.2.0"),
+        decoded.contains(&format!("version:{NEWER_VERSION}")),
         "签名 trusted comment 应携带版本，实际: {decoded}"
     );
 
-    // 1. 有更新：清单 0.2.0 > 当前 0.1.0，check 返回版本，download 验签通过
+    // 1. 有更新：清单版本高于当前版本，check 返回版本，download 验签通过
     {
         let mut st = state.lock().unwrap();
         st.manifest_status = 200;
-        st.manifest = manifest(&format!("{base}/artifact.bin"), "0.2.0", &sig, vec![
+        st.manifest = manifest(&format!("{base}/artifact.bin"), NEWER_VERSION, &sig, vec![
             "windows-x86_64-nsis",
             "windows-x86_64",
         ]);
     }
     let result = check_and_download(&format!("{base}/latest.json")).expect("有更新场景不应报错");
-    assert_eq!(result.0.as_deref(), Some("0.2.0"), "应检出 0.2.0");
+    assert_eq!(result.0.as_deref(), Some(NEWER_VERSION), "应检出更新版本");
     result.1.expect("签名应通过");
 
     // 2. 无更新：清单版本等于当前版本，check 返回 None
     {
         let mut st = state.lock().unwrap();
-        st.manifest = manifest(&format!("{base}/artifact.bin"), "0.1.0", &sig, vec!["windows-x86_64"]);
+        st.manifest = manifest(
+            &format!("{base}/artifact.bin"),
+            env!("CARGO_PKG_VERSION"),
+            &sig,
+            vec!["windows-x86_64"],
+        );
     }
     let result = check_and_download(&format!("{base}/latest.json")).expect("无更新场景不应报错");
     assert!(result.0.is_none(), "同版本不应判定为更新");
 
-    // 3. 签名错误：清单声明 0.2.0，但签名被篡改，download 必须失败
+    // 3. 签名错误：清单声明更新版本，但签名被篡改，download 必须失败
     {
         let mut st = state.lock().unwrap();
         let mut bad_sig = sig.clone();
@@ -222,10 +229,10 @@ fn updater_manifest_scenarios() {
         let idx = bad_sig.len() / 2;
         let replacement = if bad_sig.as_bytes()[idx] == b'A' { 'B' } else { 'A' };
         bad_sig.replace_range(idx..idx + 1, &replacement.to_string());
-        st.manifest = manifest(&format!("{base}/artifact.bin"), "0.2.0", &bad_sig, vec!["windows-x86_64"]);
+        st.manifest = manifest(&format!("{base}/artifact.bin"), NEWER_VERSION, &bad_sig, vec!["windows-x86_64"]);
     }
     let result = check_and_download(&format!("{base}/latest.json")).expect("check 本身应成功");
-    assert_eq!(result.0.as_deref(), Some("0.2.0"));
+    assert_eq!(result.0.as_deref(), Some(NEWER_VERSION));
     let err = result.1.expect_err("篡改签名必须失败");
     assert!(
         err.to_lowercase().contains("signature") || err.to_lowercase().contains("minisign"),
@@ -247,7 +254,7 @@ fn updater_manifest_scenarios() {
     {
         let mut st = state.lock().unwrap();
         st.manifest_status = 200;
-        st.manifest = manifest(&format!("{base}/artifact.bin"), "0.2.0", &sig, vec!["linux-x86_64"]);
+        st.manifest = manifest(&format!("{base}/artifact.bin"), NEWER_VERSION, &sig, vec!["linux-x86_64"]);
     }
     let result = check_and_download(&format!("{base}/latest.json")).expect_err("平台不匹配应报错");
     assert!(
