@@ -1,6 +1,6 @@
 ﻿# P5-5：把 release 产物打成便携版 zip。
 # 便携版 = 解压即运行，不写注册表、不建快捷方式、不注册卸载项。
-# 注意：配置/会话/日志仍写入 %APPDATA%\com.airide.app 与 %LOCALAPPDATA%\com.airide.app（与安装版共用）。
+# 注意：配置/会话/日志仍写入 %APPDATA%\AirIDE 与 %LOCALAPPDATA%\AirIDE（与安装版共用）。
 param(
     [string]$RepoRoot = '',
     [string]$TargetDir = ''
@@ -37,7 +37,7 @@ Air IDE 便携版（v$version）
 
 - 解压到任意目录，双击 "Air IDE.exe" 即可运行，无需安装。
 - 不写注册表、不创建开始菜单/桌面快捷方式、不注册卸载项。
-- 配置、会话与日志仍保存在 %APPDATA%\com.airide.app 和 %LOCALAPPDATA%\com.airide.app
+- 配置、会话与日志仍保存在 %APPDATA%\AirIDE 和 %LOCALAPPDATA%\AirIDE
   （与安装版共用）；要彻底清理请手动删除这两个目录。
 - 依赖系统 WebView2 Runtime：若启动提示缺失，请先联网安装 Microsoft Edge WebView2 Runtime。
   便携版本身不会自动联网安装 WebView2。

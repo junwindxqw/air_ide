@@ -1,8 +1,6 @@
 //! Windows 跳转列表（P5-6）：最近项目写入 Jump List，点击以 `--open <path>` 启动。
 //! 参数编码 / 解析 / 去重是纯函数，便于跨平台单测；COM 写入仅在 Windows 生效。
 
-use std::path::{Path, PathBuf};
-
 use air_core::{AirError, AirResult};
 
 /// 分类名（资源管理器右键任务栏图标时看到的分组）。
@@ -112,11 +110,6 @@ pub fn title_for_path(path: &str) -> String {
     }
 }
 
-/// 跳转列表快捷方式目录（`%LOCALAPPDATA%\AirIDE\jump`）。
-pub fn jump_dir(data_root: &Path) -> PathBuf {
-    data_root.join("jump")
-}
-
 /// 最近项目列表 → 跳转项（去重 + 上限），标题取目录名。
 pub fn entries_from_recent(paths: &[String]) -> Vec<JumpEntry> {
     dedupe_projects(paths, MAX_ITEMS)
@@ -146,41 +139,33 @@ pub fn apply_jump_list(entries: &[JumpEntry]) -> AirResult<()> {
     result
 }
 
+/// `PKEY_Title`（System.Title），自定义分类项的显示名必须通过该属性设置。
+#[cfg(windows)]
+fn title_property_key() -> windows::Win32::Foundation::PROPERTYKEY {
+    windows::Win32::Foundation::PROPERTYKEY {
+        fmtid: windows::core::GUID::from_u128(0xF29F85E0_4FF9_1068_AB91_08002B27B3D9),
+        pid: 2,
+    }
+}
+
 #[cfg(windows)]
 fn apply_jump_list_inner(entries: &[JumpEntry]) -> AirResult<()> {
-    use std::path::PathBuf;
-
     use windows::core::{Interface, HSTRING, IUnknown};
-    use windows::Win32::System::Com::{
-        CoCreateInstance, IPersistFile, CLSCTX_INPROC_SERVER,
-    };
+    use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
+    use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
     use windows::Win32::UI::Shell::Common::{IObjectArray, IObjectCollection};
+    use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
     use windows::Win32::UI::Shell::{
-        DestinationList, EnumerableObjectCollection, IShellItem, IShellLinkW,
-        SHCreateItemFromParsingName, ShellLink,
+        DestinationList, EnumerableObjectCollection, ICustomDestinationList, IShellLinkW,
+        ShellLink,
     };
 
     let exe = std::env::current_exe()
         .map_err(|e| AirError::other(format!("获取 exe 路径失败: {e}")))?;
     let exe = dunce::simplified(&exe);
-    let data_root = std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .map(|p| p.join("AirIDE"))
-        .ok_or_else(|| AirError::other("LOCALAPPDATA 未设置"))?;
-    let dir = jump_dir(&data_root);
-    std::fs::create_dir_all(&dir)?;
+    let exe_str = exe.to_string_lossy().to_string();
 
-    // 清理上一次生成的快捷方式，避免残留项。
-    if let Ok(read) = std::fs::read_dir(&dir) {
-        for entry in read.flatten() {
-            let p = entry.path();
-            if p.extension().and_then(|e| e.to_str()) == Some("lnk") {
-                let _ = std::fs::remove_file(p);
-            }
-        }
-    }
-
-    let destination: windows::Win32::UI::Shell::ICustomDestinationList =
+    let destination: ICustomDestinationList =
         unsafe { CoCreateInstance(&DestinationList, None, CLSCTX_INPROC_SERVER) }
             .map_err(|e| AirError::other(format!("创建跳转列表失败: {e}")))?;
     unsafe {
@@ -201,9 +186,7 @@ fn apply_jump_list_inner(entries: &[JumpEntry]) -> AirResult<()> {
         unsafe { CoCreateInstance(&EnumerableObjectCollection, None, CLSCTX_INPROC_SERVER) }
             .map_err(|e| AirError::other(format!("创建集合失败: {e}")))?;
 
-    let exe_str = exe.to_string_lossy().to_string();
-    for (index, item) in entries.iter().take(MAX_ITEMS).enumerate() {
-        let lnk = dir.join(format!("{index}.lnk"));
+    for item in entries.iter().take(MAX_ITEMS) {
         let link: IShellLinkW = unsafe { CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER) }
             .map_err(|e| AirError::other(format!("创建快捷方式失败: {e}")))?;
         unsafe {
@@ -215,19 +198,23 @@ fn apply_jump_list_inner(entries: &[JumpEntry]) -> AirResult<()> {
                 .map_err(|e| AirError::other(format!("设置快捷方式描述失败: {e}")))?;
             link.SetIconLocation(&HSTRING::from(exe_str.as_str()), 0)
                 .map_err(|e| AirError::other(format!("设置快捷方式图标失败: {e}")))?;
-            let persist: IPersistFile = link
+
+            // 自定义分类接受 IShellLink（无需落盘 .lnk）。此前用 .lnk 的
+            // IShellItem 会因未注册 ProgID 而以 0x80040F03 失败；IShellLink
+            // 要求 SetArguments + PKEY_Title，这里补上标题属性。
+            let store: IPropertyStore = link
                 .cast()
-                .map_err(|e| AirError::other(format!("转换为 IPersistFile 失败: {e}")))?;
-            persist
-                .Save(&HSTRING::from(lnk.to_string_lossy().as_ref()), true)
-                .map_err(|e| AirError::other(format!("保存快捷方式失败: {e}")))?;
-        }
-        let shell_item: IShellItem = unsafe {
-            SHCreateItemFromParsingName(&HSTRING::from(lnk.to_string_lossy().as_ref()), None)
-        }
-        .map_err(|e| AirError::other(format!("创建 ShellItem 失败: {e}")))?;
-        unsafe {
-            let unknown: IUnknown = shell_item
+                .map_err(|e| AirError::other(format!("读取快捷方式属性失败: {e}")))?;
+            let title_key = title_property_key();
+            let title_value = PROPVARIANT::from(item.title.as_str());
+            store
+                .SetValue(&title_key, &title_value)
+                .map_err(|e| AirError::other(format!("设置跳转项标题失败: {e}")))?;
+            store
+                .Commit()
+                .map_err(|e| AirError::other(format!("提交快捷方式属性失败: {e}")))?;
+
+            let unknown: IUnknown = link
                 .cast()
                 .map_err(|e| AirError::other(format!("转换 IUnknown 失败: {e}")))?;
             collection
@@ -334,8 +321,25 @@ mod tests {
     }
 
     #[test]
-    fn jump_dir_is_under_data_root() {
-        let dir = jump_dir(Path::new(r"C:\Users\me\AppData\Local\AirIDE"));
-        assert!(dir.ends_with("jump"));
+    fn entries_from_recent_dedupes_and_caps_category() {
+        let mut input: Vec<String> = (0..12).map(|i| format!(r"C:\work\p{i}")).collect();
+        input.push(r"c:/WORK/p0\".to_string());
+        let entries = entries_from_recent(&input);
+        assert_eq!(entries.len(), MAX_ITEMS);
+        assert_eq!(entries[0].title, "p0");
+        assert_eq!(entries[0].path, r"C:\work\p0");
+        assert_eq!(entries[MAX_ITEMS - 1].path, r"C:\work\p9");
+        assert!(entries.iter().all(|e| !e.title.is_empty()));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn title_property_key_is_system_title() {
+        let key = title_property_key();
+        assert_eq!(key.pid, 2);
+        assert_eq!(
+            key.fmtid,
+            windows::core::GUID::from_u128(0xF29F85E0_4FF9_1068_AB91_08002B27B3D9)
+        );
     }
 }
