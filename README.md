@@ -3,7 +3,7 @@
 面向「AI 写代码、人来审阅」工作流的 Windows 桌面编辑器：读代码、看 Git Diff、跑 Git 操作，
 界面与快捷键偏 JetBrains 风格。前端 React + CodeMirror 6，桌面壳与文件/Git/语言服务器能力由 Rust（Tauri 2）提供。
 
-当前版本：**0.2.0**（2026-11-06 发布）。
+当前版本：**0.2.1**（即将发布；线上最新为 0.2.0）。
 
 ## 功能概览
 
@@ -22,7 +22,8 @@
 
 从 GitHub Releases 下载：
 
-- 最新版：<https://github.com/junwindxqw/air_ide/releases/latest>
+- 最新版：<https://github.com/junwindxqw/air_ide/releases/latest>（当前为 0.2.0）
+- 0.2.1：即将发布（发布后 `releases/latest` 会自动指向）
 - 0.2.0：<https://github.com/junwindxqw/air_ide/releases/tag/v0.2.0>
 
 发布资产（GitHub 会把文件名中的空格显示为点）：

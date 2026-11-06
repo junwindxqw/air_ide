@@ -55,9 +55,10 @@ env:
 
 ### 1.3 轮换
 
-1. 生成新密钥对，更新 `tauri.conf.json` 的 `pubkey`；
-2. 旧版本客户端仍信任旧公钥，只能完成「旧公钥 → 新版本」这一次更新后才会使用新公钥；
-3. 因此轮换至少需要保留一次用旧私钥签名的过渡版本，过渡版本内嵌新公钥。
+1. 生成新密钥对（建议设置口令），更新 `tauri.conf.json` 的 `pubkey`；
+2. 已安装旧版本的客户端只信任旧公钥，无法验证用新私钥签的清单，因此不会自动更新；
+3. 0.2.1 起采用「发布内嵌新公钥的版本 + 要求旧版本用户手动覆盖安装」的方式切换，
+   之后的自动更新链路再基于新密钥运行（细节见第 6.2 节）。
 
 ## 2. 发布步骤
 
@@ -187,36 +188,35 @@ pnpm --filter desktop test
 6. **发布未 CI 化**：`.github/workflows/ci.yml` 只做检查/测试（含发布脚本单测），
    不构建安装包、不注入签名密钥、不自动上传 Release；发版仍在本机执行 `release.mjs --publish`。
 
-## 6. 发布与密钥管理（0.2.0 现状）
+## 6. 发布与密钥管理（0.2.1 现状）
 
-> 本节记录 0.2.0 实际发布方式、密钥保管与风险；操作步骤见第 2 节。
+> 本节记录 0.2.1 起的密钥切换与发布约束；操作步骤见第 2 节。
 
 ### 6.1 私钥位置与口令
 
-| 项 | 现状 |
+| 项 | 现状（0.2.1 起） |
 |---|---|
-| 私钥文件 | `%USERPROFILE%\.air-ide\air-ide-updater.key`（仓库外） |
-| 公钥 | 写入 `apps/desktop/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey` |
-| 口令 | **当前为空口令**（未设置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`） |
-| 备份 | 需离线备份；丢失后已发布版本无法再接收更新，只能让用户手动重装 |
+| 私钥文件 | `%USERPROFILE%\.air-ide\air-ide-updater-v2.key`（仓库外，带口令） |
+| 口令 | 单独存放于 `%USERPROFILE%\.air-ide\air-ide-updater-v2.password`，NTFS ACL 仅当前用户可读写；通过 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 注入，不入库、不写入脚本 |
+| 公钥 | 写入 `apps/desktop/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`（key id `956D21A6170C9818`） |
+| 旧密钥 | `%USERPROFILE%\.air-ide\air-ide-updater.key`（空口令）保留，**仅用于 0.2.0 及更早包的历史核验**，不再用于新版本签名 |
+| 备份 | 需离线备份；丢失后已发布版本无法继续接收更新，只能让用户手动重装 |
 
-空口令风险：拿到私钥文件的人可直接为任意版本签名，已安装客户端会因为签名“有效”而接受
-恶意更新（`requireSignedVersion` 只校验版本一致性，不校验发布者身份）。建议：
+> 发布脚本的默认私钥路径仍指向旧密钥；构建 0.2.1 起须显式用 `TAURI_SIGNING_PRIVATE_KEY`
+> （v2 私钥内容或路径）+ `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 注入，或传 `--key` 指定 v2 私钥。
 
-- 用 NTFS ACL 限制私钥文件仅发布者账号可读，避免放入网盘/同步目录/仓库；
-- 发布机器与日常开发机隔离；
-- 条件允许时用 `tauri signer generate` 时设置口令，并通过
-  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 注入，不要把口令写进脚本或仓库；
-- 轮换后按第 1.3 节保留一次旧私钥签名的过渡版本。
+0.2.0 及更早使用空口令私钥：拿到私钥文件的人可直接为任意版本签名，已安装客户端会因为签名
+“有效”而接受恶意更新（`requireSignedVersion` 只校验版本一致性，不校验发布者身份）。
+0.2.1 起改用带口令的 v2 密钥，私钥与口令分离保管，两个文件均限制为仅发布者账号可读写，
+且不放入网盘/同步目录/仓库。
 
-### 6.2 密钥轮换注意事项
+### 6.2 密钥切换与兼容性
 
-1. 生成新密钥对并更新 `tauri.conf.json` 的 `pubkey`；
-2. 已安装的旧客户端只信任旧公钥，**无法验证**用新私钥签的新清单；
-3. 必须先用旧私钥签一个「过渡版本」，该版本内嵌新公钥；用户完成这次更新后才会信任新密钥；
-4. 过渡版本发布并确认覆盖率之前，不要删除旧私钥；
-5. `latest.json` 必须由当前客户端仍信任的私钥签名——过渡期内用旧私钥签，
-   过渡期结束后改用新私钥。
+1. 0.2.1 的 `pubkey` 已切换为 v2 公钥（key id `956D21A6170C9818`），0.2.1 及之后的包用 v2 私钥签名；
+2. 已安装 0.2.0 的客户端只信任旧公钥，**无法验证** v2 私钥签发的新清单，因此不会自动更新到 0.2.1，
+   需手动下载 0.2.1 安装包覆盖安装（用户数据目录 `%APPDATA%\AirIDE` / `%LOCALAPPDATA%\AirIDE` 不受影响）；
+3. 从 0.2.1 起，后续版本的自动更新链路均基于 v2 密钥；
+4. 旧私钥仅保留作 0.2.0 及更早包的历史核验；确认历史资产无需复核后可离线归档，不要删除或轮换口令。
 
 ### 6.3 缺少 Authenticode 的影响
 
@@ -227,7 +227,7 @@ pnpm --filter desktop test
 - 后续若采购证书，签名密钥（Authenticode）与更新密钥（Minisign）需分别管理；
   更换 Authenticode 证书不影响已安装客户端的更新信任链。
 
-### 6.4 0.2.0 发布资产与校验
+### 6.4 0.2.0 发布资产与校验（历史）
 
 | 资产 | 大小（字节） |
 |---|---|
@@ -240,3 +240,13 @@ pnpm --filter desktop test
 
 Release：<https://github.com/junwindxqw/air_ide/releases/tag/v0.2.0>。
 发布后可用 `scripts/release/verify-updater.mjs` 与 Release 页的 SHA-256 复核。
+
+### 6.5 测试密钥（updater 集成测试）
+
+- `apps/desktop/src-tauri/tests/updater_manifest.rs` 使用**独立的测试密钥**：
+  测试公钥入库为 `tests/fixtures/updater/test-pubkey.txt`，签名夹具为 `artifact.bin.sig`
+  （trusted comment 绑定固定版本 `9999.0.0`）。
+- 测试私钥 `%USERPROFILE%\.air-ide\test-updater.key`（空口令）只在本地生成，**不入库**；
+  丢失时重新生成后，用该私钥执行 `tauri signer sign --app-version 9999.0.0 artifact.bin` 重签夹具即可。
+- mock app 通过 `tauri_plugin_updater::Builder::pubkey()` 覆写为测试公钥，
+  因此生产更新密钥轮换**不影响**这组测试。

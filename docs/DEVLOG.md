@@ -366,3 +366,13 @@ Windows 集成（系统集成开关/跳转列表/任务栏进度/通知/Defender
 6. **发布未 CI 化**：需要手工注入签名密钥与上传资产，存在人为漏传/错传风险。
 7. **文档/模板待修**：`scripts/install/make-portable.ps1` 生成的「便携版说明.txt」仍写
    `%APPDATA%\com.airide.app`，实际代码使用 `%APPDATA%\AirIDE`（本次仅改文档，未改脚本）。
+
+## 0.2.1 待发布（2026-11-06）
+
+- 版本号抬升至 0.2.1：`apps/desktop/src-tauri/tauri.conf.json`、workspace `Cargo.toml`、
+  `apps/desktop/package.json` 三处同步。
+- 更新密钥切换到带口令的 v2 密钥（key id `956D21A6170C9818`）：私钥与口令分别存于
+  `%USERPROFILE%\.air-ide\air-ide-updater-v2.key` / `.password`（仓库外，ACL 仅当前用户）。
+- 旧密钥 `air-ide-updater.key` 保留，仅用于 0.2.0 及更早包的历史核验。
+- 已安装 0.2.0 的客户端只信任旧公钥，无法自动更新到 0.2.1，需手动覆盖安装。
+- 当前仅完成配置与文档改动：尚未构建、签名、发布，暂无 0.2.1 Release。

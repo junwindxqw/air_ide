@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "air-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "air-fs"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "air-core",
  "encoding_rs",
@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "air-git"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "air-core",
  "air-win",
@@ -47,7 +47,7 @@ dependencies = [
 
 [[package]]
 name = "air-ide"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "air-core",
  "air-fs",
@@ -78,7 +78,7 @@ dependencies = [
 
 [[package]]
 name = "air-lsp"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "air-core",
  "air-win",
@@ -91,7 +91,7 @@ dependencies = [
 
 [[package]]
 name = "air-search"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "air-core",
  "air-fs",
@@ -106,7 +106,7 @@ dependencies = [
 
 [[package]]
 name = "air-win"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "air-core",
  "dunce",
@@ -116,7 +116,7 @@ dependencies = [
 
 [[package]]
 name = "air-workspace"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "air-core",
  "serde",
