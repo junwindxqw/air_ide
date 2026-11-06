@@ -1,0 +1,4 @@
+# 更新链测试 fixture 按字节比对签名：禁止换行转换，也不做文本 diff。
+# 背景：artifact.bin（37 B）与 artifact.bin.sig 成对提交，若 checkout 时把 LF 转成 CRLF，
+# updater_manifest 用例会验签失败（本地闸口通过、CI 必红）。
+apps/desktop/src-tauri/tests/fixtures/** -text -diff

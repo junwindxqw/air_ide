@@ -9,7 +9,23 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$installDir = Join-Path $env:LOCALAPPDATA 'Air IDE'
+# 安装位置可能被历史安装记录或用户自定义到任意盘符，优先读卸载项，再回退默认路径。
+function Resolve-InstallDir {
+    $default = Join-Path $env:LOCALAPPDATA 'Air IDE'
+    $keys = @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Air IDE',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Air IDE',
+        'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Air IDE'
+    )
+    foreach ($key in $keys) {
+        $value = (Get-ItemProperty -Path $key -Name InstallLocation -ErrorAction SilentlyContinue).InstallLocation
+        if ($value) {
+            return $value.Trim('"').TrimEnd('\')
+        }
+    }
+    return $default
+}
+
 $startMenuLnk = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Air IDE.lnk'
 $startMenuDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Air IDE'
 $desktopLnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Air IDE.lnk'
@@ -41,8 +57,13 @@ if (-not (Test-Path $InstallerPath)) { throw "安装包不存在: $InstallerPath
 Write-Host '== 1. 静默安装 (/S) ==' -ForegroundColor Cyan
 $setup = Start-Process -FilePath $InstallerPath -ArgumentList '/S' -Wait -PassThru
 Add-Result '安装器退出码' ($setup.ExitCode -eq 0) "exit=$($setup.ExitCode)"
-$installed = Wait-Until { Test-Path (Join-Path $installDir 'air-ide.exe') } 30
+$installDir = Resolve-InstallDir
+$exePath = Join-Path $installDir 'air-ide.exe'
+$installed = Wait-Until { Test-Path $exePath } 30
 Add-Result '安装目录与主程序' $installed $installDir
+if (-not $installed) {
+    throw "安装已完成但未找到主程序：$exePath（已查注册表 InstallLocation，回退默认 $env:LOCALAPPDATA\Air IDE）"
+}
 Add-Result '开始菜单快捷方式' (Test-Path $startMenuLnk) $startMenuLnk
 Add-Result '桌面快捷方式' (Test-Path $desktopLnk) $desktopLnk
 $keyExists = Test-Path $uninstKey
