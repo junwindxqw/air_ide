@@ -1,6 +1,7 @@
 // P5-7：用真实的 tauri-plugin-updater 校验链路（check → download → 验签）
 // 对接本地静态服务器，覆盖「有更新 / 无更新 / 签名错误 / 404 / 平台不匹配」。
-// 签名 fixture 由仓库内的公钥对应的私钥生成（私钥不入库），见 docs/UPDATER.md。
+// 签名 fixture 由测试专用密钥生成（私钥不入库），与生产更新密钥解耦，
+// 生产密钥轮换不影响本测试。见 docs/UPDATER.md「测试密钥」。
 
 use std::{
     io::{BufRead, BufReader, Write},
@@ -22,6 +23,8 @@ mod common;
 const FIXTURE_DIR: &str = "tests/fixtures/updater";
 /// fixture 签名绑定的「永远有更新」版本：签名是静态的，不能随每次发版重签。
 const NEWER_VERSION: &str = "9999.0.0";
+/// 测试专用公钥（对应本地 `%USERPROFILE%\.air-ide\test-updater.key`，私钥不入库）。
+const TEST_PUBKEY: &str = include_str!("fixtures/updater/test-pubkey.txt");
 
 struct ServerState {
     manifest_status: u16,
@@ -116,10 +119,14 @@ fn handle_conn(mut stream: TcpStream, state: &Arc<Mutex<ServerState>>) {
 }
 
 fn mock_app() -> tauri::App<tauri::test::MockRuntime> {
-    // 用真实 tauri.conf.json 生成 context（pubkey / requireSignedVersion 与生产一致），
-    // 只把 endpoint 在 UpdaterBuilder 上覆盖成被测的本地服务器。
+    // 用真实 tauri.conf.json 生成 context（requireSignedVersion 与生产一致），
+    // 但把 pubkey 覆写为测试专用公钥：夹具验签只看测试密钥，不依赖生产密钥。
     tauri::test::mock_builder()
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .pubkey(TEST_PUBKEY.trim())
+                .build(),
+        )
         .build(tauri::generate_context!())
         .expect("构建 mock app")
 }
